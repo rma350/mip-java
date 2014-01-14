@@ -220,5 +220,9 @@ public class MipSolver {
 					"Solution must be feasible or optimal to call this method.");
 		}
 	}
+	
+	public void destroy(){
+		this.basicLpSolver.destroy();
+	}
 
 }

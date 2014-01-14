@@ -40,5 +40,7 @@ public interface BasicLpSolver {
 	public double getVarLB(int variableIndex);
 
 	public double getVarUB(int variableIndex);
+	
+	public void destroy();
 
 }

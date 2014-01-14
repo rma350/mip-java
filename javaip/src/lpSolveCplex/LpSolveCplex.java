@@ -194,4 +194,9 @@ public class LpSolveCplex extends
 			throw new RuntimeException(e);
 		}
 	}
+
+	@Override
+	public void destory() {
+		cplex.end();
+	}
 }

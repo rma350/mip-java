@@ -133,4 +133,9 @@ public class BasicLpSolverImpl<V, C, O> implements BasicLpSolver {
 		return lpSolver.getVarUB(variables.get(variableIndex));
 	}
 
+	@Override
+	public void destroy() {
+		lpSolver.destory();
+	}
+
 }

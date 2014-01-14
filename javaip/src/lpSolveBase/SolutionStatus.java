@@ -1,0 +1,8 @@
+package lpSolveBase;
+
+
+public enum SolutionStatus {
+
+	BOUNDED, ERROR, FEASIBLE, INFEASIBLE, INFEASIBLE_OR_UNBOUNDED, OPTIMAL, UNBOUNDED, UNKNOWN;
+
+}

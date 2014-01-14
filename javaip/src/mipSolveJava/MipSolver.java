@@ -48,6 +48,110 @@ public class MipSolver {
 		variableUpperBoundsToRestore = new OpenIntToDoubleHashMap();
 	}
 
+	public void solve() {
+		Node first = new Node(nodesCreated++, new OpenIntToDoubleHashMap(),
+				new OpenIntToDoubleHashMap(), Optional.<Double> absent());
+		nodeStack.add(first);
+		while (!nodeStack.isEmpty()) {
+			Node nextNode = nodeStack.poll();
+			configureLp(nextNode);
+			basicLpSolver.solve();
+			// System.out.println("lp solution status: "
+			// + basicLpSolver.getSolutionStatus());
+			// System.out.println("lp solution value: "
+			// + basicLpSolver.getObjValue());
+			// System.out.println("lp var values: " +
+			// basicLpSolver.getVarValue(0)
+			// + ", " + basicLpSolver.getVarValue(1));
+
+			if (basicLpSolver.getSolutionStatus() == SolutionStatus.UNBOUNDED) {
+				// if(this.incumbent.isPresent()){
+				// this.solutionStatus = SolutionStatus.UNBOUNDED;
+				// }
+				// else{
+				this.solutionStatus = SolutionStatus.INFEASIBLE_OR_UNBOUNDED;
+				// }
+				return;
+			} else if (basicLpSolver.getSolutionStatus() == SolutionStatus.INFEASIBLE) {
+				continue;
+			} else if (basicLpSolver.getSolutionStatus() == SolutionStatus.OPTIMAL
+					|| basicLpSolver.getSolutionStatus() == SolutionStatus.FEASIBLE) {
+				if (this.solutionStatus == SolutionStatus.UNKNOWN) {
+					this.solutionStatus = SolutionStatus.BOUNDED;
+				}
+				Solution solution = this.extractSolution();
+				System.out.println("Solution value: " + solution.getObjValue());
+				System.out.println("Solution variables: "
+						+ Arrays.toString(solution.getVariableValues()));
+				if (pruneNode(solution.getObjValue())) {
+					continue;
+				}
+				if (solution.isIntegral()) {
+					this.proposeIntegerSolution(solution);
+				} else {
+					int branchVariable = variableBranchSelector
+							.selectVariableForBranching(solution,
+									this.integerVariables);
+					Node down = new Node(nodesCreated++,
+							solution.getObjValue(), nextNode);
+					down.getBranchingVariableUBs()
+							.put(branchVariable,
+									Math.floor(solution.getVariableValues()[branchVariable]));
+					this.nodeStack.add(down);
+					Node up = new Node(nodesCreated++, solution.getObjValue(),
+							nextNode);
+					up.getBranchingVariableLBs()
+							.put(branchVariable,
+									Math.ceil(solution.getVariableValues()[branchVariable]));
+					this.nodeStack.add(up);
+				}
+			} else {
+				throw new RuntimeException("Unexpected solution status: "
+						+ basicLpSolver.getSolutionStatus());
+			}
+		}
+		if (this.incumbent.isPresent()) {
+			solutionStatus = SolutionStatus.OPTIMAL;
+		} else {
+			solutionStatus = SolutionStatus.INFEASIBLE;
+		}
+	}
+
+	public boolean varIsInteger(int varIndex) {
+		return this.integerVariables[varIndex];
+	}
+
+	public double getLPVarValue(int varIndex) {
+		return this.basicLpSolver.getVarValue(varIndex);
+	}
+
+	public SolutionStatus getSolutionStatus() {
+		return solutionStatus;
+	}
+
+	public double getVarValue(int varIndex) {
+		ensureAtLeastFeasible();
+		return this.incumbent.get().getVariableValues()[varIndex];
+	}
+
+	public double getObjValue() {
+		ensureAtLeastFeasible();
+		return this.incumbent.get().getObjValue();
+
+	}
+
+	private void ensureAtLeastFeasible() {
+		if (!(this.solutionStatus == SolutionStatus.FEASIBLE)
+				&& !(this.solutionStatus == SolutionStatus.OPTIMAL)) {
+			throw new RuntimeException(
+					"Solution must be feasible or optimal to call this method.");
+		}
+	}
+
+	public void destroy() {
+		this.basicLpSolver.destroy();
+	}
+
 	private boolean pruneNode(double objAttained) {
 		if (!incumbent.isPresent()) {
 			return false;
@@ -123,106 +227,10 @@ public class MipSolver {
 				this.integerVariables);
 	}
 
-	public void proposeIntegerSolution(Solution solution) {
+	private void proposeIntegerSolution(Solution solution) {
 		System.out.println("Found integer solution: " + solution.getObjValue());
 		this.solutionStatus = SolutionStatus.FEASIBLE;
 		this.incumbent = Optional.of(solution);
-	}
-
-	public void solve() {
-		Node first = new Node(nodesCreated++, new OpenIntToDoubleHashMap(),
-				new OpenIntToDoubleHashMap(), Optional.<Double> absent());
-		nodeStack.add(first);
-		while (!nodeStack.isEmpty()) {
-			Node nextNode = nodeStack.poll();
-			configureLp(nextNode);
-			basicLpSolver.solve();
-			// System.out.println("lp solution status: "
-			// + basicLpSolver.getSolutionStatus());
-			// System.out.println("lp solution value: "
-			// + basicLpSolver.getObjValue());
-			// System.out.println("lp var values: " +
-			// basicLpSolver.getVarValue(0)
-			// + ", " + basicLpSolver.getVarValue(1));
-
-			if (basicLpSolver.getSolutionStatus() == SolutionStatus.UNBOUNDED) {
-				// if(this.incumbent.isPresent()){
-				// this.solutionStatus = SolutionStatus.UNBOUNDED;
-				// }
-				// else{
-				this.solutionStatus = SolutionStatus.INFEASIBLE_OR_UNBOUNDED;
-				// }
-				return;
-			} else if (basicLpSolver.getSolutionStatus() == SolutionStatus.INFEASIBLE) {
-				continue;
-			} else if (basicLpSolver.getSolutionStatus() == SolutionStatus.OPTIMAL
-					|| basicLpSolver.getSolutionStatus() == SolutionStatus.FEASIBLE) {
-				if (this.solutionStatus == SolutionStatus.UNKNOWN) {
-					this.solutionStatus = SolutionStatus.BOUNDED;
-				}
-				Solution solution = this.extractSolution();
-				System.out.println("Solution value: " + solution.getObjValue());
-				System.out.println("Solution variables: "
-						+ Arrays.toString(solution.getVariableValues()));
-				if (pruneNode(solution.getObjValue())) {
-					continue;
-				}
-				if (solution.isIntegral()) {
-					this.proposeIntegerSolution(solution);
-				} else {
-					int branchVariable = variableBranchSelector
-							.selectVariableForBranching(solution,
-									this.integerVariables);
-					Node down = new Node(nodesCreated++,
-							solution.getObjValue(), nextNode);
-					down.getBranchingVariableUBs()
-							.put(branchVariable,
-									Math.floor(solution.getVariableValues()[branchVariable]));
-					this.nodeStack.add(down);
-					Node up = new Node(nodesCreated++, solution.getObjValue(),
-							nextNode);
-					up.getBranchingVariableLBs()
-							.put(branchVariable,
-									Math.ceil(solution.getVariableValues()[branchVariable]));
-					this.nodeStack.add(up);
-				}
-			} else {
-				throw new RuntimeException("Unexpected solution status: "
-						+ basicLpSolver.getSolutionStatus());
-			}
-		}
-		if (this.incumbent.isPresent()) {
-			solutionStatus = SolutionStatus.OPTIMAL;
-		} else {
-			solutionStatus = SolutionStatus.INFEASIBLE;
-		}
-	}
-
-	public SolutionStatus getSolutionStatus() {
-		return solutionStatus;
-	}
-
-	public double getVarValue(int varIndex) {
-		ensureAtLeastFeasible();
-		return this.incumbent.get().getVariableValues()[varIndex];
-	}
-
-	public double getObjValue() {
-		ensureAtLeastFeasible();
-		return this.incumbent.get().getObjValue();
-
-	}
-
-	private void ensureAtLeastFeasible() {
-		if (!(this.solutionStatus == SolutionStatus.FEASIBLE)
-				&& !(this.solutionStatus == SolutionStatus.OPTIMAL)) {
-			throw new RuntimeException(
-					"Solution must be feasible or optimal to call this method.");
-		}
-	}
-	
-	public void destroy(){
-		this.basicLpSolver.destroy();
 	}
 
 }

@@ -1,7 +1,8 @@
-package combOpt;
+package combOpt.knapsack;
 
 import com.google.common.collect.ImmutableList;
-import combOpt.Knapsack.Item;
+
+import combOpt.knapsack.Knapsack.Item;
 
 public class KnapsackTestInstance {
 

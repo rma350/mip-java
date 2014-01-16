@@ -1,4 +1,4 @@
-package combOpt;
+package combOpt.knapsack;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -6,7 +6,8 @@ import java.io.FileReader;
 import java.io.IOException;
 
 import com.google.common.collect.ImmutableList;
-import combOpt.Knapsack.Item;
+
+import combOpt.knapsack.Knapsack.Item;
 
 public class KnapsackTestReader {
 

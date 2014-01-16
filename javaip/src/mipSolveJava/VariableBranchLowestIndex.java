@@ -1,5 +1,7 @@
 package mipSolveJava;
 
+import java.util.List;
+
 public class VariableBranchLowestIndex implements VariableBranchSelector {
 
 	public static final VariableBranchLowestIndex INSTANCE = new VariableBranchLowestIndex();
@@ -9,9 +11,9 @@ public class VariableBranchLowestIndex implements VariableBranchSelector {
 
 	@Override
 	public int selectVariableForBranching(Solution solution,
-			boolean[] integerVariables) {
+			List<Boolean> integerVariables) {
 		for (int i = 0; i < solution.getVariableValues().length; i++) {
-			if (integerVariables[i] && !solution.indexIntegral(i)) {
+			if (integerVariables.get(i) && !solution.indexIntegral(i)) {
 				return i;
 			}
 		}

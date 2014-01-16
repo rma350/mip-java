@@ -1,9 +1,11 @@
 package mipSolveJava;
 
+import java.util.List;
+
 public class Solution {
 	private final double objValue;
 	private final double[] variableValues;
-	private final boolean[] integerVariables;
+	private final List<Boolean> integerVariables;
 	private final double integralityTol;
 	private final boolean integral;
 
@@ -20,7 +22,7 @@ public class Solution {
 	}
 
 	public Solution(double objValue, double[] variableValues,
-			double integralityTol, boolean[] integerVariables) {
+			double integralityTol, List<Boolean> integerVariables) {
 		super();
 		this.objValue = objValue;
 		this.variableValues = variableValues;
@@ -36,7 +38,7 @@ public class Solution {
 
 	private boolean isInteger() {
 		for (int i = 0; i < variableValues.length; i++) {
-			if (integerVariables[i] && !indexIntegral(i)) {
+			if (integerVariables.get(i) && !indexIntegral(i)) {
 				return false;
 			}
 		}

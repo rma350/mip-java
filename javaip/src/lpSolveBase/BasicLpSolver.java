@@ -4,11 +4,11 @@ import com.google.common.base.Optional;
 
 public interface BasicLpSolver {
 
-	public int getNumConstraints();
+	public int getNumConstrs();
 
-	public int getNumVariables();
+	public int getNumVars();
 
-	public Optional<ObjectiveSense> getObjectiveSense();
+	public Optional<ObjectiveSense> getObjSense();
 
 	public void solve();
 

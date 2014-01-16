@@ -1,8 +1,10 @@
-package combOpt;
+package combOpt.knapsack;
 
 import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
+
+import combOpt.knapsack.Knapsack;
 
 public class KnapsackTest {
 

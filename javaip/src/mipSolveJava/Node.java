@@ -42,4 +42,8 @@ public class Node {
 		return bestBound;
 	}
 
+	public void setBestBound(double bestBound) {
+		this.bestBound = Optional.of(bestBound);
+	}
+
 }

@@ -26,12 +26,12 @@ public class BasicLpSolverImpl<V, C, O> implements BasicLpSolver {
 	}
 
 	@Override
-	public int getNumConstraints() {
+	public int getNumConstrs() {
 		return constraintCount;
 	}
 
 	@Override
-	public int getNumVariables() {
+	public int getNumVars() {
 		return varCount;
 	}
 
@@ -110,7 +110,7 @@ public class BasicLpSolverImpl<V, C, O> implements BasicLpSolver {
 	}
 
 	@Override
-	public Optional<ObjectiveSense> getObjectiveSense() {
+	public Optional<ObjectiveSense> getObjSense() {
 		if (this.objective.isPresent()) {
 			return Optional.of(lpSolver.getObjectiveSense(objective.get()));
 		} else {

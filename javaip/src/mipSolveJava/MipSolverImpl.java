@@ -1,6 +1,5 @@
 package mipSolveJava;
 
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
@@ -52,11 +51,7 @@ public class MipSolverImpl implements MipSolverInternal {
 		this.nodesCreated = 0;
 		this.solutionStatus = SolutionStatus.UNKNOWN;
 		this.variableBranchSelector = VariableBranchLowestIndex.INSTANCE;
-		Optional<ObjectiveSense> objectiveSense = basicLpSolver.getObjSense();
-		this.nodeSelector = objectiveSense.isPresent() ? BestBoundNodeSelector
-				.getBestBoundNodeSelector(objectiveSense.get())
-				: DiveNodeSelector.INSTANCE;
-		this.nodeStack = new PriorityQueue<Node>(10, nodeSelector);
+
 		variableLowerBoundsToRestore = new OpenIntToDoubleHashMap();
 		variableUpperBoundsToRestore = new OpenIntToDoubleHashMap();
 		this.userCutCallbacks = Lists.newArrayList();
@@ -65,9 +60,16 @@ public class MipSolverImpl implements MipSolverInternal {
 
 	@Override
 	public void solve() {
+		Optional<ObjectiveSense> objectiveSense = basicLpSolver.getObjSense();
+		this.nodeSelector = objectiveSense.isPresent() ? BestBoundNodeSelector
+				.getBestBoundNodeSelector(objectiveSense.get())
+				: DiveNodeSelector.INSTANCE;
+		this.nodeStack = new PriorityQueue<Node>(10, nodeSelector);
 		Node first = new Node(nodesCreated++, new OpenIntToDoubleHashMap(),
 				new OpenIntToDoubleHashMap(), Optional.<Double> absent());
 		nodeStack.add(first);
+		System.out
+				.println("nodes created, node stack size, current node, current LP, incumbent");
 		while (!nodeStack.isEmpty()) {
 			Node nextNode = nodeStack.poll();
 			configureLp(nextNode);
@@ -96,9 +98,20 @@ public class MipSolverImpl implements MipSolverInternal {
 					this.solutionStatus = SolutionStatus.BOUNDED;
 				}
 				Solution solution = this.extractSolution();
-				System.out.println("Solution value: " + solution.getObjValue());
-				System.out.println("Solution variables: "
-						+ Arrays.toString(solution.getVariableValues()));
+				System.out.println(this.nodesCreated
+						+ ","
+						+ this.nodeStackSize()
+						+ ","
+						+ nextNode.getId()
+						+ ","
+						+ solution.getObjValue()
+						+ ","
+						+ (this.incumbent.isPresent() ? ""
+								+ this.incumbent.get().getObjValue() : "?"));
+				// System.out.println("Solution value: " +
+				// solution.getObjValue());
+				// System.out.println("Solution variables: "
+				// + Arrays.toString(solution.getVariableValues()));
 				if (pruneNode(solution.getObjValue())) {
 					continue;
 				}

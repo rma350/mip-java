@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -57,6 +58,11 @@ public class UndirectedGraph {
 
 	public List<Node> vertexSet() {
 		return this.nodes;
+	}
+
+	@VisibleForTesting
+	Table<Node, Node, Edge> getEdgeTable() {
+		return this.edges;
 	}
 
 }

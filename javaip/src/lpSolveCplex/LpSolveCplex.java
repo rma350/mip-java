@@ -38,6 +38,7 @@ public class LpSolveCplex extends
 	public LpSolveCplex() {
 		try {
 			cplex = new IloCplex();
+			cplex.setOut(null);
 		} catch (IloException e) {
 			throw new RuntimeException(e);
 		}

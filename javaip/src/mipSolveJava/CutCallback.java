@@ -59,4 +59,9 @@ public abstract class CutCallback {
 	 */
 	protected abstract boolean onCallback(Solution solution);
 
+	/** Probably don't actually want to expose this. Don't use this directly. */
+	protected MipSolverInternal getMipSolverInternal() {
+		return this.mipSolver;
+	}
+
 }

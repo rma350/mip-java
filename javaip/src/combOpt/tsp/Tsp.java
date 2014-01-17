@@ -1,5 +1,6 @@
 package combOpt.tsp;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,8 +25,19 @@ public class Tsp {
 	private Set<Edge> edgesInSolution;
 	private double solutionCost;
 
+	private EnumSet<TspOption> tspOptions;
+
+	public static enum TspOption {
+		userCuts;
+	}
+
 	public Tsp(UndirectedGraph graph) {
+		this(graph, EnumSet.allOf(TspOption.class));
+	}
+
+	public Tsp(UndirectedGraph graph, EnumSet<TspOption> tspOptions) {
 		this.graph = graph;
+		this.tspOptions = tspOptions;
 		this.numCities = graph.vertexSet().size();
 		if (numCities < 3) {
 			throw new RuntimeException("Need at least three cities for TSP");
@@ -49,8 +61,12 @@ public class Tsp {
 				solver.setConstrCoef(degreeConstr, this.edgeVars.get(edge), 1.0);
 			}
 		}
-		ConnectedCallback lazy = new ConnectedCallback(solver);
+		ConnectedCallback lazy = new ConnectedCallback(solver, false);
 		solver.addLazyConstraintCallback(lazy);
+		if (this.tspOptions.contains(TspOption.userCuts)) {
+			ConnectedCallback user = new ConnectedCallback(solver, true);
+			solver.addUserCutCallback(user);
+		}
 		solver.solve();
 
 		solutionCost = solver.getObjValue();
@@ -73,12 +89,18 @@ public class Tsp {
 
 	private class ConnectedCallback extends CutCallback {
 
-		public ConnectedCallback(MipSolverInternal mipSolver) {
+		private boolean rootOnly;
+
+		public ConnectedCallback(MipSolverInternal mipSolver, boolean rootOnly) {
 			super(mipSolver);
+			this.rootOnly = rootOnly;
 		}
 
 		@Override
 		protected boolean onCallback(Solution solution) {
+			if (rootOnly && this.getMipSolverInternal().nodesCreated() > 1) {
+				return true;
+			}
 			Map<Edge, Double> edgeValues = Maps.newHashMap();
 			for (Edge edge : graph.edgeSet()) {
 				edgeValues.put(edge,

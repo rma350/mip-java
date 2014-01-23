@@ -1,10 +1,12 @@
 package combOpt.knapsack;
 
 import lpSolveBase.ObjectiveSense;
-import mipSolveJava.MipSolver;
-import mipSolveJava.MipSolverImpl;
+import mipSolveBase.MipSolver;
 
 import com.google.common.collect.ImmutableList;
+
+import easy.EasyMip;
+import easy.EasyMip.SolverType;
 
 public class Knapsack {
 
@@ -33,12 +35,13 @@ public class Knapsack {
 	private ImmutableList<Boolean> itemsSolution;
 	private double profitSolution;
 
-	public Knapsack(ImmutableList<Item> items, double capacity) {
+	public Knapsack(ImmutableList<Item> items, double capacity,
+			SolverType solverType) {
 		this.capacity = capacity;
 		this.items = items;
 		numItems = items.size();
 
-		MipSolver solver = new MipSolverImpl();
+		MipSolver solver = EasyMip.create(solverType);
 		solver.createConstr();
 		solver.setConstrLB(0, 0);
 		solver.setConstrUB(0, capacity);

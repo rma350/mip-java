@@ -3,7 +3,6 @@ package lpSolveCplex;
 import ilog.concert.IloException;
 import ilog.concert.IloNumVar;
 import ilog.concert.IloObjective;
-import ilog.concert.IloObjectiveSense;
 import ilog.concert.IloRange;
 import ilog.cplex.IloCplex;
 import ilog.cplex.IloCplex.Status;
@@ -11,27 +10,10 @@ import ilog.cplex.IloCplex.UnknownObjectException;
 import lpSolveBase.AbstractLpSolver;
 import lpSolveBase.ObjectiveSense;
 import lpSolveBase.SolutionStatus;
-
-import com.google.common.collect.ImmutableBiMap;
+import util.cplex.CplexConstants;
 
 public class LpSolveCplex extends
 		AbstractLpSolver<IloNumVar, IloRange, IloObjective> {
-
-	public static final ImmutableBiMap<ObjectiveSense, IloObjectiveSense> CPLEX_OBJECTIVE_SENSE = ImmutableBiMap
-			.of(ObjectiveSense.MAX, IloObjectiveSense.Maximize,
-					ObjectiveSense.MIN, IloObjectiveSense.Minimize);
-
-	public static final ImmutableBiMap<SolutionStatus, Status> CPLEX_SOLUTION_STATUS = ImmutableBiMap
-			.<SolutionStatus, Status> builder()
-			.put(SolutionStatus.BOUNDED, Status.Bounded)
-			.put(SolutionStatus.ERROR, Status.Error)
-			.put(SolutionStatus.FEASIBLE, Status.Feasible)
-			.put(SolutionStatus.INFEASIBLE, Status.Infeasible)
-			.put(SolutionStatus.INFEASIBLE_OR_UNBOUNDED,
-					Status.InfeasibleOrUnbounded)
-			.put(SolutionStatus.OPTIMAL, Status.Optimal)
-			.put(SolutionStatus.UNBOUNDED, Status.Unbounded)
-			.put(SolutionStatus.UNKNOWN, Status.Unknown).build();
 
 	private IloCplex cplex;
 
@@ -105,7 +87,7 @@ public class LpSolveCplex extends
 	public SolutionStatus getSolutionStatus() {
 		try {
 			Status status = cplex.getStatus();
-			return CPLEX_SOLUTION_STATUS.inverse().get(status);
+			return CplexConstants.CPLEX_SOLUTION_STATUS.inverse().get(status);
 		} catch (IloException e) {
 			throw new RuntimeException(e);
 		}
@@ -114,8 +96,7 @@ public class LpSolveCplex extends
 	@Override
 	public IloRange createConstr() {
 		try {
-			return cplex.addRange(Double.NEGATIVE_INFINITY,
-					Double.POSITIVE_INFINITY);
+			return cplex.addRange(1e-20, 1e20);
 		} catch (IloException e) {
 			throw new RuntimeException(e);
 		}
@@ -124,8 +105,8 @@ public class LpSolveCplex extends
 	@Override
 	public IloObjective createObj(lpSolveBase.ObjectiveSense objectiveSense) {
 		try {
-			return cplex
-					.addObjective(CPLEX_OBJECTIVE_SENSE.get(objectiveSense));
+			return cplex.addObjective(CplexConstants.CPLEX_OBJECTIVE_SENSE
+					.get(objectiveSense));
 		} catch (IloException e) {
 			throw new RuntimeException(e);
 		}
@@ -172,7 +153,8 @@ public class LpSolveCplex extends
 	@Override
 	public ObjectiveSense getObjectiveSense(IloObjective objective) {
 		try {
-			return CPLEX_OBJECTIVE_SENSE.inverse().get(objective.getSense());
+			return CplexConstants.CPLEX_OBJECTIVE_SENSE.inverse().get(
+					objective.getSense());
 		} catch (IloException e) {
 			throw new RuntimeException(e);
 		}

@@ -1,4 +1,4 @@
-package mipSolveJava;
+package mipSolveBase;
 
 import lpSolveBase.ObjectiveSense;
 import lpSolveBase.SolutionStatus;
@@ -61,5 +61,11 @@ public interface MipSolver {
 	// clean up
 
 	public void destroy();
+
+	// add callbacks
+
+	public void addLazyConstraintCallback(CutCallback cutCallback);
+
+	public void addUserCutCallback(CutCallback cutCallback);
 
 }

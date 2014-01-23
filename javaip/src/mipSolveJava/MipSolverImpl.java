@@ -7,6 +7,9 @@ import java.util.PriorityQueue;
 import lpSolveBase.BasicLpSolver;
 import lpSolveBase.ObjectiveSense;
 import lpSolveBase.SolutionStatus;
+import mipSolveBase.CutCallback;
+import mipSolveBase.CutCallbackMipView;
+import mipSolveBase.MipSolver;
 
 import org.apache.commons.math3.util.OpenIntToDoubleHashMap;
 
@@ -15,7 +18,7 @@ import com.google.common.collect.Lists;
 
 import easy.EasyLp;
 
-public class MipSolverImpl implements MipSolverInternal {
+public class MipSolverImpl implements MipSolver, CutCallbackMipView {
 
 	private double mipNodeCompareTol = .0001;
 	private double integralityTol = .0001;
@@ -278,7 +281,8 @@ public class MipSolverImpl implements MipSolverInternal {
 			List<? extends CutCallback> cutCallbacks, Solution solution) {
 		int constraintCount = this.getNumConstrs();
 		for (CutCallback cutCallback : cutCallbacks) {
-			boolean keepLooking = cutCallback.onCallbackWrap(solution);
+			boolean keepLooking = cutCallback.onCallback(this
+					.getCutCallbackMipView());
 			if (!keepLooking) {
 				break;
 			}
@@ -401,6 +405,10 @@ public class MipSolverImpl implements MipSolverInternal {
 	@Override
 	public void addUserCutCallback(CutCallback cutCallback) {
 		this.userCutCallbacks.add(cutCallback);
+	}
+
+	public CutCallbackMipView getCutCallbackMipView() {
+		return this;
 	}
 
 }

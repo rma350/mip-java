@@ -12,6 +12,10 @@ public class Node {
 		this.id = id;
 	}
 
+	public String toString() {
+		return "n" + id;
+	}
+
 	@Override
 	public int hashCode() {
 		final int prime = 31;

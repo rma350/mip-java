@@ -6,14 +6,16 @@ import java.util.Map;
 import java.util.Set;
 
 import lpSolveBase.ObjectiveSense;
-import mipSolveJava.CutCallback;
-import mipSolveJava.MipSolverImpl;
-import mipSolveJava.MipSolverInternal;
-import mipSolveJava.Solution;
+import mipSolveBase.CutCallback;
+import mipSolveBase.CutCallbackMipView;
+import mipSolveBase.MipSolver;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import easy.EasyMip;
+import easy.EasyMip.SolverType;
 
 public class Tsp {
 
@@ -31,18 +33,19 @@ public class Tsp {
 		userCuts;
 	}
 
-	public Tsp(UndirectedGraph graph) {
-		this(graph, EnumSet.allOf(TspOption.class));
+	public Tsp(UndirectedGraph graph, SolverType solverType) {
+		this(graph, solverType, EnumSet.allOf(TspOption.class));
 	}
 
-	public Tsp(UndirectedGraph graph, EnumSet<TspOption> tspOptions) {
+	public Tsp(UndirectedGraph graph, SolverType solverType,
+			EnumSet<TspOption> tspOptions) {
 		this.graph = graph;
 		this.tspOptions = tspOptions;
 		this.numCities = graph.vertexSet().size();
 		if (numCities < 3) {
 			throw new RuntimeException("Need at least three cities for TSP");
 		}
-		MipSolverInternal solver = new MipSolverImpl();
+		MipSolver solver = EasyMip.create(solverType);
 		solver.createObj(ObjectiveSense.MIN);
 		edgeVars = Maps.newHashMap();
 		for (Edge e : graph.edgeSet()) {
@@ -61,10 +64,10 @@ public class Tsp {
 				solver.setConstrCoef(degreeConstr, this.edgeVars.get(edge), 1.0);
 			}
 		}
-		ConnectedCallback lazy = new ConnectedCallback(solver, false);
+		ConnectedCallback lazy = new ConnectedCallback(false);
 		solver.addLazyConstraintCallback(lazy);
 		if (this.tspOptions.contains(TspOption.userCuts)) {
-			ConnectedCallback user = new ConnectedCallback(solver, true);
+			ConnectedCallback user = new ConnectedCallback(true);
 			solver.addUserCutCallback(user);
 		}
 		solver.solve();
@@ -87,36 +90,35 @@ public class Tsp {
 		return this.solutionCost;
 	}
 
-	private class ConnectedCallback extends CutCallback {
+	private class ConnectedCallback implements CutCallback {
 
 		private boolean rootOnly;
 
-		public ConnectedCallback(MipSolverInternal mipSolver, boolean rootOnly) {
-			super(mipSolver);
+		public ConnectedCallback(boolean rootOnly) {
 			this.rootOnly = rootOnly;
 		}
 
 		@Override
-		protected boolean onCallback(Solution solution) {
-			if (rootOnly && this.getMipSolverInternal().nodesCreated() > 1) {
+		public boolean onCallback(CutCallbackMipView mipView) {
+			if (rootOnly && mipView.nodesCreated() > 1) {
 				return true;
 			}
 			Map<Edge, Double> edgeValues = Maps.newHashMap();
 			for (Edge edge : graph.edgeSet()) {
-				edgeValues.put(edge,
-						solution.getVariableValues()[edgeVars.get(edge)]);
+				edgeValues.put(edge, mipView.getLPVarValue(edgeVars.get(edge)));
 			}
 			List<Set<Node>> connectedComponents = connectedComponents(graph,
 					edgeValues);
 			for (int i = 0; i < connectedComponents.size() - 1; i++) {
 				Set<Node> component = connectedComponents.get(i);
-				int cutsetConstraint = this.createConstr();
-				this.setConstrLB(cutsetConstraint, 2.0);
+				int cutsetConstraint = mipView.createConstr();
+				mipView.setConstrLB(cutsetConstraint, 2.0);
+				mipView.setConstrUB(cutsetConstraint, numCities);
 				for (Node node : component) {
 					for (Map.Entry<Node, Edge> adjacent : graph
 							.getAdjacentEdges(node).entrySet()) {
 						if (!component.contains(adjacent.getKey())) {
-							this.setConstrCoef(cutsetConstraint,
+							mipView.setConstrCoef(cutsetConstraint,
 									edgeVars.get(adjacent.getValue()), 1.0);
 						}
 					}

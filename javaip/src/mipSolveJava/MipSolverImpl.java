@@ -53,7 +53,7 @@ public class MipSolverImpl implements MipSolver, CutCallbackMipView {
 		incumbent = Optional.absent();
 		this.nodesCreated = 0;
 		this.solutionStatus = SolutionStatus.UNKNOWN;
-		this.variableBranchSelector = VariableBranchLowestIndex.INSTANCE;
+		this.variableBranchSelector = VariableBranchMostFractional.INSTANCE;
 
 		variableLowerBoundsToRestore = new OpenIntToDoubleHashMap();
 		variableUpperBoundsToRestore = new OpenIntToDoubleHashMap();

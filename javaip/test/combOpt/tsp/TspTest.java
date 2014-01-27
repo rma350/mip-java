@@ -1,7 +1,6 @@
 package combOpt.tsp;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assume.assumeTrue;
 
 import org.junit.experimental.theories.DataPoints;
 import org.junit.experimental.theories.Theories;
@@ -24,9 +23,9 @@ public class TspTest {
 
 	@Theory
 	public void test(SolverType solverType, String instanceName) {
-		// something is wrong with bier127...
-		assumeTrue(!instanceName.equals("bier127")
-				|| solverType != SolverType.JAVA);
+
+		// assumeTrue(instanceName.equals("bier127")
+		// && solverType == SolverType.JAVA);
 		System.out.println("Testing tsp on instance: " + instanceName
 				+ " with solver: " + solverType);
 		GeoTspTestInstance instance = GeoTspTestReader.readTest(instanceName);

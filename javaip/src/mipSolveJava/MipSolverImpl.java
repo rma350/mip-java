@@ -62,7 +62,7 @@ public class MipSolverImpl implements MipSolver {
 		incumbent = Optional.absent();
 		this.nodesCreated = 0;
 		this.solutionStatus = SolutionStatus.UNKNOWN;
-		this.variableBranchSelector = VariableBranchMostFractionalRandomized.INSTANCE;
+		this.variableBranchSelector = new StrongBranching(this.basicLpSolver);// VariableBranchMostFractionalRandomized.INSTANCE;
 
 		variableLowerBoundsToRestore = new OpenIntToDoubleHashMap();
 		variableUpperBoundsToRestore = new OpenIntToDoubleHashMap();

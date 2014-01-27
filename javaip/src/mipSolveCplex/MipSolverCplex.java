@@ -7,6 +7,8 @@ import ilog.concert.IloNumVar;
 import ilog.concert.IloObjective;
 import ilog.concert.IloRange;
 import ilog.cplex.IloCplex;
+import ilog.cplex.IloCplex.BooleanParam;
+import ilog.cplex.IloCplex.IntParam;
 import ilog.cplex.IloCplex.LazyConstraintCallback;
 import ilog.cplex.IloCplex.Status;
 import ilog.cplex.IloCplex.UnknownObjectException;
@@ -41,6 +43,13 @@ public class MipSolverCplex implements
 	public MipSolverCplex() {
 		try {
 			cplex = new IloCplex();
+			cplex.setParam(BooleanParam.PreInd, false);
+			cplex.setParam(IntParam.RepeatPresolve, 0);
+			// cplex.setParam(IntParam.CutPass, -1);
+			cplex.setParam(IntParam.ZeroHalfCuts, -1);
+			cplex.setParam(IntParam.Covers, -1);
+			cplex.setParam(IntParam.FracCuts, -1);
+			cplex.setParam(IntParam.VarSel, 3);
 		} catch (IloException e) {
 			throw new RuntimeException(e);
 		}
@@ -407,7 +416,7 @@ public class MipSolverCplex implements
 		@Override
 		protected void main() throws IloException {
 			constraintsBuilder.clear();
-			for (WrappedCutCallback<IloNumVar, IloRange, IloObjective> wrappedLazy : wrappedLazyCallbacks) {
+			for (WrappedCutCallback<IloNumVar, IloRange, IloObjective> wrappedLazy : wrappedUserCallbacks) {
 				boolean continueCallbacks = wrappedLazy.onCallback(this);
 				if (!continueCallbacks) {
 					break;

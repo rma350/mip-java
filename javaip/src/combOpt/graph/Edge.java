@@ -1,24 +1,18 @@
-package combOpt.tsp;
+package combOpt.graph;
 
 import com.google.common.collect.ImmutableSet;
 
 public class Edge {
 
 	private ImmutableSet<Node> endpoints;
-	private double weight;
 
 	public ImmutableSet<Node> getEndpoints() {
 		return endpoints;
 	}
 
-	Edge(ImmutableSet<Node> endpoints, double weight) {
+	Edge(ImmutableSet<Node> endpoints) {
 		super();
 		this.endpoints = endpoints;
-		this.weight = weight;
-	}
-
-	public double getWeight() {
-		return this.weight;
 	}
 
 	@Override

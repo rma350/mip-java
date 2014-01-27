@@ -18,6 +18,8 @@ public interface BasicLpSolver {
 
 	public double getVarValue(int variableIndex);
 
+	public double getDualVarValue(int constraintIndex);
+
 	public int createVar();
 
 	public int createConstr();
@@ -40,7 +42,7 @@ public interface BasicLpSolver {
 	public double getVarLB(int variableIndex);
 
 	public double getVarUB(int variableIndex);
-	
+
 	public void destroy();
 
 }

@@ -1,5 +1,6 @@
 package mipSolveJava;
 
+import java.text.DecimalFormat;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
@@ -8,17 +9,20 @@ import lpSolveBase.BasicLpSolver;
 import lpSolveBase.ObjectiveSense;
 import lpSolveBase.SolutionStatus;
 import mipSolveBase.CutCallback;
+import mipSolveBase.CutCallbackLogger;
+import mipSolveBase.CutCallbackLogger.CutCallbackLog;
 import mipSolveBase.CutCallbackMipView;
 import mipSolveBase.MipSolver;
 
 import org.apache.commons.math3.util.OpenIntToDoubleHashMap;
 
 import com.google.common.base.Optional;
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 
 import easy.EasyLp;
 
-public class MipSolverImpl implements MipSolver, CutCallbackMipView {
+public class MipSolverImpl implements MipSolver {
 
 	private double mipNodeCompareTol = .0001;
 	private double integralityTol = .0001;
@@ -39,6 +43,11 @@ public class MipSolverImpl implements MipSolver, CutCallbackMipView {
 	private List<CutCallback> userCutCallbacks;
 	private List<CutCallback> lazyConstraintCallbacks;
 
+	private CutCallbackMipView cutCallbackMipView;
+
+	private CutCallbackLogger userCutCallbackLogger;
+	private CutCallbackLogger lazyConstraintCallbackLogger;
+
 	public MipSolverImpl() {
 		this(EasyLp.easyLpSolver());
 	}
@@ -53,13 +62,19 @@ public class MipSolverImpl implements MipSolver, CutCallbackMipView {
 		incumbent = Optional.absent();
 		this.nodesCreated = 0;
 		this.solutionStatus = SolutionStatus.UNKNOWN;
-		this.variableBranchSelector = VariableBranchMostFractional.INSTANCE;
+		this.variableBranchSelector = VariableBranchMostFractionalRandomized.INSTANCE;
 
 		variableLowerBoundsToRestore = new OpenIntToDoubleHashMap();
 		variableUpperBoundsToRestore = new OpenIntToDoubleHashMap();
 		this.userCutCallbacks = Lists.newArrayList();
 		this.lazyConstraintCallbacks = Lists.newArrayList();
+		this.userCutCallbackLogger = new CutCallbackLogger();
+		this.lazyConstraintCallbackLogger = new CutCallbackLogger();
+		cutCallbackMipView = new CutCallbackMipViewImpl();
+
 	}
+
+	private static DecimalFormat logsFormat = new DecimalFormat("#.00");
 
 	@Override
 	public void solve() {
@@ -71,10 +86,22 @@ public class MipSolverImpl implements MipSolver, CutCallbackMipView {
 		Node first = new Node(nodesCreated++, new OpenIntToDoubleHashMap(),
 				new OpenIntToDoubleHashMap(), Optional.<Double> absent());
 		nodeStack.add(first);
-		System.out
-				.println("nodes created, node stack size, current node, current LP, incumbent");
+		int columnWidth = 18;
+		String[] columnHeaders = { "nodes created", "node stack size",
+				"current node", "current LP", "best bound", "incumbent", "cuts" };
+		for (String header : columnHeaders) {
+			System.out.print(Strings.padStart(header, columnWidth, ' '));
+		}
+		System.out.println();
 		while (!nodeStack.isEmpty()) {
 			Node nextNode = nodeStack.poll();
+			if (this.incumbent.isPresent()
+					&& nextNode.getBestBound().isPresent()) {
+				if (Math.abs(this.incumbent.get().getObjValue()
+						- nextNode.getBestBound().get()) < mipNodeCompareTol) {
+					break;
+				}
+			}
 			configureLp(nextNode);
 			basicLpSolver.solve();
 			// System.out.println("lp solution status: "
@@ -101,20 +128,22 @@ public class MipSolverImpl implements MipSolver, CutCallbackMipView {
 					this.solutionStatus = SolutionStatus.BOUNDED;
 				}
 				Solution solution = this.extractSolution();
-				System.out.println(this.nodesCreated
-						+ ","
-						+ this.nodeStackSize()
-						+ ","
-						+ nextNode.getId()
-						+ ","
-						+ solution.getObjValue()
-						+ ","
-						+ (this.incumbent.isPresent() ? ""
-								+ this.incumbent.get().getObjValue() : "?"));
-				// System.out.println("Solution value: " +
-				// solution.getObjValue());
-				// System.out.println("Solution variables: "
-				// + Arrays.toString(solution.getVariableValues()));
+				String[] columnValues = {
+						"" + this.nodesCreated,
+						"" + this.nodeStack.size(),
+						"" + nextNode.getId(),
+						logsFormat.format(solution.getObjValue()),
+						nextNode.getBestBound().isPresent() ? logsFormat
+								.format(nextNode.getBestBound().get()
+										.doubleValue()) : "?",
+						(this.incumbent.isPresent() ? logsFormat
+								.format(this.incumbent.get().getObjValue())
+								: "?"),
+						this.userCutCallbackLogger.getNodeLogString() };
+				for (String value : columnValues) {
+					System.out.print(Strings.padStart(value, columnWidth, ' '));
+				}
+				System.out.println();
 				if (pruneNode(solution.getObjValue())) {
 					continue;
 				}
@@ -122,7 +151,8 @@ public class MipSolverImpl implements MipSolver, CutCallbackMipView {
 					this.proposeIntegerSolution(nextNode, solution);
 				} else {
 					boolean addedUserCutCallback = processCutCallbacks(
-							nextNode, this.userCutCallbacks, solution);
+							nextNode, this.userCutCallbacks, solution,
+							this.userCutCallbackLogger);
 					if (addedUserCutCallback) {
 
 					} else {
@@ -158,11 +188,6 @@ public class MipSolverImpl implements MipSolver, CutCallbackMipView {
 	@Override
 	public boolean varIsInteger(int varIndex) {
 		return this.integerVariables.get(varIndex);
-	}
-
-	@Override
-	public double getLPVarValue(int varIndex) {
-		return this.basicLpSolver.getVarValue(varIndex);
 	}
 
 	@Override
@@ -278,11 +303,22 @@ public class MipSolverImpl implements MipSolver, CutCallbackMipView {
 	 * @return true if at least one constraint was added, otherwise false
 	 */
 	private boolean processCutCallbacks(Node node,
-			List<? extends CutCallback> cutCallbacks, Solution solution) {
+			List<? extends CutCallback> cutCallbacks, Solution solution,
+			CutCallbackLogger cutCallbackLogger) {
+
 		int constraintCount = this.getNumConstrs();
+		cutCallbackLogger.onStartCallback();
 		for (CutCallback cutCallback : cutCallbacks) {
+			CutCallbackLog log = cutCallbackLogger.getLog(cutCallback);
+			int constraintCountThisCallback = this.getNumConstrs();
+			log.onAttempt();
 			boolean keepLooking = cutCallback.onCallback(this
 					.getCutCallbackMipView());
+			int newConstraints = this.getNumConstrs()
+					- constraintCountThisCallback;
+			for (int i = 0; i < newConstraints; i++) {
+				log.onCut();
+			}
 			if (!keepLooking) {
 				break;
 			}
@@ -299,7 +335,8 @@ public class MipSolverImpl implements MipSolver, CutCallbackMipView {
 		System.out.println("Found integer solution: " + solution.getObjValue());
 
 		boolean constrAdded = processCutCallbacks(sourceNode,
-				this.lazyConstraintCallbacks, solution);
+				this.lazyConstraintCallbacks, solution,
+				this.lazyConstraintCallbackLogger);
 		if (constrAdded) {
 			System.out.println("Pruned solution in lazy callback!");
 		} else {
@@ -388,27 +425,58 @@ public class MipSolverImpl implements MipSolver, CutCallbackMipView {
 	}
 
 	@Override
-	public long nodesCreated() {
-		return this.nodesCreated;
-	}
-
-	@Override
-	public long nodeStackSize() {
-		return this.nodeStack.size();
-	}
-
-	@Override
 	public void addLazyConstraintCallback(CutCallback cutCallback) {
+		this.lazyConstraintCallbackLogger.onAddCallback(cutCallback);
 		this.lazyConstraintCallbacks.add(cutCallback);
 	}
 
 	@Override
 	public void addUserCutCallback(CutCallback cutCallback) {
+		this.userCutCallbackLogger.onAddCallback(cutCallback);
 		this.userCutCallbacks.add(cutCallback);
 	}
 
 	public CutCallbackMipView getCutCallbackMipView() {
-		return this;
+		return this.cutCallbackMipView;
+	}
+
+	public class CutCallbackMipViewImpl implements CutCallbackMipView {
+
+		@Override
+		public long nodesCreated() {
+			return nodesCreated;
+		}
+
+		@Override
+		public long nodeStackSize() {
+			return nodeStack.size();
+		}
+
+		@Override
+		public double getLPVarValue(int varIndex) {
+			return basicLpSolver.getVarValue(varIndex);
+		}
+
+		@Override
+		public int createConstr() {
+			return MipSolverImpl.this.createConstr();
+		}
+
+		@Override
+		public void setConstrCoef(int constrIndex, int varIndex, double value) {
+			MipSolverImpl.this.setConstrCoef(constrIndex, varIndex, value);
+		}
+
+		@Override
+		public void setConstrUB(int constrIndex, double value) {
+			MipSolverImpl.this.setConstrUB(constrIndex, value);
+		}
+
+		@Override
+		public void setConstrLB(int constrIndex, double value) {
+			MipSolverImpl.this.setConstrLB(constrIndex, value);
+		}
+
 	}
 
 }

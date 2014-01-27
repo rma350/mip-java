@@ -388,9 +388,9 @@ public class MipSolverCplex implements
 		}
 
 		@Override
-		public double[] getLPVarValues(IloNumVar[] vars) {
+		public double[] getLPVarValues(List<IloNumVar> vars) {
 			try {
-				return this.getValues(vars);
+				return this.getValues(vars.toArray(new IloNumVar[vars.size()]));
 			} catch (IloException e) {
 				throw new RuntimeException(e);
 			}
@@ -482,9 +482,9 @@ public class MipSolverCplex implements
 		}
 
 		@Override
-		public double[] getLPVarValues(IloNumVar[] vars) {
+		public double[] getLPVarValues(List<IloNumVar> vars) {
 			try {
-				return this.getValues(vars);
+				return this.getValues(vars.toArray(new IloNumVar[vars.size()]));
 			} catch (IloException e) {
 				throw new RuntimeException(e);
 			}

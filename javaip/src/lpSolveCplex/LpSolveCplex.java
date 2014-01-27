@@ -182,4 +182,15 @@ public class LpSolveCplex extends
 	public void destory() {
 		cplex.end();
 	}
+
+	@Override
+	public double getDualVarValue(IloRange constraint) {
+		try {
+			return cplex.getDual(constraint);
+		} catch (UnknownObjectException e) {
+			throw new RuntimeException(e);
+		} catch (IloException e) {
+			throw new RuntimeException(e);
+		}
+	}
 }

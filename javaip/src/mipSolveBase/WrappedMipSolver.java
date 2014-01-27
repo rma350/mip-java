@@ -190,9 +190,13 @@ public class WrappedMipSolver<V, C, O> implements MipSolver {
 
 		private WrappedCutCallbackMipView<V, C, O> wrappedCutCallbackMipView;
 
+		private double[] lpVarVals;
+
 		public CutCallbackMipViewFromWrap(
 				WrappedCutCallbackMipView<V, C, O> wrappedCutCallbackMipView) {
 			this.wrappedCutCallbackMipView = wrappedCutCallbackMipView;
+			lpVarVals = this.wrappedCutCallbackMipView
+					.getLPVarValues(variables);
 		}
 
 		@Override
@@ -207,8 +211,8 @@ public class WrappedMipSolver<V, C, O> implements MipSolver {
 
 		@Override
 		public double getLPVarValue(int index) {
-			return this.wrappedCutCallbackMipView.getLPVarValue(variables
-					.get(index));
+			return lpVarVals[index];// this.wrappedCutCallbackMipView.getLPVarValue(variables
+									// .get(index));
 		}
 
 		@Override

@@ -1,4 +1,4 @@
-package combOpt.tsp;
+package combOpt.graph;
 
 import java.util.List;
 import java.util.Map;
@@ -11,14 +11,14 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 
-public class UndirectedGraph {
+public class UndirectedGraphTable implements ReadableUndirectedGraph {
 
 	private List<Node> nodes;
 
 	private Table<Node, Node, Edge> edges;
 	private Set<Edge> edgeSet;
 
-	public UndirectedGraph() {
+	public UndirectedGraphTable() {
 		this.nodes = Lists.newArrayList();
 		this.edges = HashBasedTable.create();
 		edgeSet = Sets.newHashSet();
@@ -36,12 +36,12 @@ public class UndirectedGraph {
 		}
 	}
 
-	public Edge addEdge(Node endPoint, Node otherEndPoint, double weight) {
+	public Edge addEdge(Node endPoint, Node otherEndPoint) {
 		if (endPoint == otherEndPoint) {
 			throw new RuntimeException(
 					"Illegal edge, endpoints must be distinct");
 		}
-		Edge answer = new Edge(ImmutableSet.of(endPoint, otherEndPoint), weight);
+		Edge answer = new Edge(ImmutableSet.of(endPoint, otherEndPoint));
 		edges.put(endPoint, otherEndPoint, answer);
 		edges.put(otherEndPoint, endPoint, answer);
 		edgeSet.add(answer);
@@ -59,6 +59,12 @@ public class UndirectedGraph {
 	public List<Node> vertexSet() {
 		return this.nodes;
 	}
+
+	/*
+	 * public UndirectedGraph createSubgraph(Predicate<Edge> includeEdge){
+	 * UndirectedGraph ans = new UndirectedGraph();
+	 * ans.nodes.addAll(this.nodes); }
+	 */
 
 	@VisibleForTesting
 	Table<Node, Node, Edge> getEdgeTable() {

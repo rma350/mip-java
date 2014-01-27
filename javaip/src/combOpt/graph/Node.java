@@ -1,4 +1,4 @@
-package combOpt.tsp;
+package combOpt.graph;
 
 public class Node {
 	private int id;

@@ -1,4 +1,4 @@
-package combOpt.tsp;
+package combOpt.graph;
 
 import static org.junit.Assert.assertEquals;
 
@@ -12,6 +12,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
+import combOpt.tsp.GeoTspTestInstance;
+import combOpt.tsp.GeoTspTestReader;
 
 public class GraphIOTest {
 
@@ -32,27 +34,33 @@ public class GraphIOTest {
 		Table<Node, Node, Edge> expectedEdgeTable = HashBasedTable.create();
 		Set<Edge> expectedEdges = Sets.newHashSet();
 		Edge e01 = new Edge(ImmutableSet.of(expectedNodes.get(0),
-				expectedNodes.get(1)), 3);
+				expectedNodes.get(1)));
 		expectedEdges.add(e01);
 		expectedEdgeTable.put(expectedNodes.get(0), expectedNodes.get(1), e01);
 		expectedEdgeTable.put(expectedNodes.get(1), expectedNodes.get(0), e01);
+		assertEquals(3.0, instance.getGraph().getWeight(e01), tolerance);
 
 		Edge e12 = new Edge(ImmutableSet.of(expectedNodes.get(1),
-				expectedNodes.get(2)), 5);
+				expectedNodes.get(2)));
 		expectedEdges.add(e12);
 		expectedEdgeTable.put(expectedNodes.get(1), expectedNodes.get(2), e12);
 		expectedEdgeTable.put(expectedNodes.get(2), expectedNodes.get(1), e12);
+		assertEquals(5.0, instance.getGraph().getWeight(e12), tolerance);
 
 		Edge e02 = new Edge(ImmutableSet.of(expectedNodes.get(0),
-				expectedNodes.get(2)), 4);
+				expectedNodes.get(2)));
 		expectedEdges.add(e02);
 		expectedEdgeTable.put(expectedNodes.get(0), expectedNodes.get(2), e02);
 		expectedEdgeTable.put(expectedNodes.get(2), expectedNodes.get(0), e02);
+		assertEquals(4.0, instance.getGraph().getWeight(e02), tolerance);
 
 		assertEquals(expectedNodes, instance.getGraph().vertexSet());
 		assertEquals(expectedEdges, instance.getGraph().edgeSet());
-		assertEquals(expectedEdgeTable, instance.getGraph().getEdgeTable());
+		assertEquals(expectedEdgeTable, instance.getGraph().getGraph()
+				.getEdgeTable());
 
 	}
+
+	private static double tolerance = .0001;
 
 }

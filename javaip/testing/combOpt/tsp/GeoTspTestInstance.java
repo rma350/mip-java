@@ -3,11 +3,13 @@ package combOpt.tsp;
 import java.util.List;
 
 import com.google.common.collect.Lists;
+import combOpt.graph.Node;
+import combOpt.graph.UndirectedWeightedGraph;
 
 public class GeoTspTestInstance {
 
 	private List<Point> points;
-	private UndirectedGraph graph;
+	private UndirectedWeightedGraph graph;
 	private int optSolution;
 
 	public GeoTspTestInstance(List<Point> points, int optSolution) {
@@ -20,7 +22,7 @@ public class GeoTspTestInstance {
 		return points;
 	}
 
-	public UndirectedGraph getGraph() {
+	public UndirectedWeightedGraph getGraph() {
 		return graph;
 	}
 
@@ -53,8 +55,8 @@ public class GeoTspTestInstance {
 		return (int) Math.round(Math.sqrt(xDiff * xDiff + yDiff * yDiff));
 	}
 
-	public static UndirectedGraph createGeoGraph(List<Point> points) {
-		UndirectedGraph graph = new UndirectedGraph();
+	public static UndirectedWeightedGraph createGeoGraph(List<Point> points) {
+		UndirectedWeightedGraph graph = new UndirectedWeightedGraph();
 		List<Node> nodes = Lists.newArrayList();
 		for (int i = 0; i < points.size(); i++) {
 			nodes.add(graph.addNode());

@@ -44,12 +44,14 @@ public interface LpSolver<V, C, O> {
 
 	public double getVarValue(V variable);
 
+	public double getDualVarValue(C constraint);
+
 	public double getObjValue();
 
 	public ObjectiveSense getObjectiveSense(O objective);
 
 	public SolutionStatus getSolutionStatus();
-	
+
 	public void destory();
 
 }

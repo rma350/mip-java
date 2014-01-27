@@ -65,8 +65,8 @@ public class BasicLpSolverImpl<V, C, O> implements BasicLpSolver {
 	@Override
 	public void setObjCoef(int variableIndex, double value) {
 		checkObjective();
-		lpSolver.setObjCoef(objective.get(),
-				this.variables.get(variableIndex), value);
+		lpSolver.setObjCoef(objective.get(), this.variables.get(variableIndex),
+				value);
 	}
 
 	@Override
@@ -81,14 +81,12 @@ public class BasicLpSolverImpl<V, C, O> implements BasicLpSolver {
 
 	@Override
 	public void setConstrLB(int constraintIndex, double value) {
-		lpSolver.setConstrLB(constraints.get(constraintIndex),
-				value);
+		lpSolver.setConstrLB(constraints.get(constraintIndex), value);
 	}
 
 	@Override
 	public void setConstrUB(int constraintIndex, double value) {
-		lpSolver.setConstrUB(constraints.get(constraintIndex),
-				value);
+		lpSolver.setConstrUB(constraints.get(constraintIndex), value);
 	}
 
 	@Override
@@ -136,6 +134,11 @@ public class BasicLpSolverImpl<V, C, O> implements BasicLpSolver {
 	@Override
 	public void destroy() {
 		lpSolver.destory();
+	}
+
+	@Override
+	public double getDualVarValue(int constraintIndex) {
+		return lpSolver.getDualVarValue(this.constraints.get(constraintIndex));
 	}
 
 }

@@ -1,5 +1,7 @@
 package wrappedMipSolver;
 
+import java.util.List;
+
 public interface WrappedCutCallbackMipView<V, C, O> {
 
 	public long nodesCreated();
@@ -15,7 +17,7 @@ public interface WrappedCutCallbackMipView<V, C, O> {
 	 * @param vars
 	 * @return
 	 */
-	public double[] getLPVarValues(V[] vars);
+	public double[] getLPVarValues(List<V> vars);
 
 	public C createConstr();
 

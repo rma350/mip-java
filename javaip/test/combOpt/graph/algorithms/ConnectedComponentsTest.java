@@ -1,4 +1,4 @@
-package combOpt.tsp;
+package combOpt.graph.algorithms;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -14,7 +14,7 @@ import combOpt.graph.Node;
 import combOpt.graph.UndirectedGraphTable;
 import combOpt.graph.algorithms.ConnectedComponents;
 
-public class TspConnectedComponentsTest {
+public class ConnectedComponentsTest {
 
 	@Test
 	public void testConnectedComponents() {

@@ -20,6 +20,8 @@ public interface BasicLpSolver {
 
 	public double getDualVarValue(int constraintIndex);
 
+	public long getNumPivots();
+
 	public int createVar();
 
 	public int createConstr();
@@ -44,5 +46,11 @@ public interface BasicLpSolver {
 	public double getVarUB(int variableIndex);
 
 	public void destroy();
+
+	public void setMaxPivots(long maxPivots);
+
+	public void saveBasis(String key);
+
+	public void setBasis(String key);
 
 }

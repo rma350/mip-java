@@ -5,6 +5,7 @@ import ilog.concert.IloNumVar;
 import ilog.concert.IloObjective;
 import ilog.concert.IloRange;
 import ilog.cplex.IloCplex;
+import ilog.cplex.IloCplex.LongParam;
 import ilog.cplex.IloCplex.Status;
 import ilog.cplex.IloCplex.UnknownObjectException;
 import lpSolveBase.AbstractLpSolver;
@@ -192,5 +193,39 @@ public class LpSolveCplex extends
 		} catch (IloException e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	@Override
+	public void setMaxPivots(long maxPivots) {
+		try {
+			cplex.setParam(LongParam.ItLim, maxPivots);
+		} catch (IloException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	@Override
+	public long getNumPivots() {
+		return cplex.getNiterations64();
+	}
+
+	@Override
+	public void saveBasis(String key) {
+		try {
+			cplex.writeBasis(key + ".bas");
+		} catch (IloException e) {
+			throw new RuntimeException(e);
+		}
+
+	}
+
+	@Override
+	public void setBasis(String key) {
+		try {
+			cplex.readBasis(key + ".bas");
+		} catch (IloException e) {
+			throw new RuntimeException(e);
+		}
+
 	}
 }

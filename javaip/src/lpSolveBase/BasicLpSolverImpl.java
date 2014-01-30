@@ -141,4 +141,24 @@ public class BasicLpSolverImpl<V, C, O> implements BasicLpSolver {
 		return lpSolver.getDualVarValue(this.constraints.get(constraintIndex));
 	}
 
+	@Override
+	public long getNumPivots() {
+		return lpSolver.getNumPivots();
+	}
+
+	@Override
+	public void setMaxPivots(long maxPivots) {
+		lpSolver.setMaxPivots(maxPivots);
+	}
+
+	@Override
+	public void saveBasis(String key) {
+		lpSolver.saveBasis(key);
+	}
+
+	@Override
+	public void setBasis(String key) {
+		lpSolver.setBasis(key);
+	}
+
 }

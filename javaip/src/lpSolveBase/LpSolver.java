@@ -36,6 +36,8 @@ public interface LpSolver<V, C, O> {
 
 	public void setVarLB(V variable, double lowerBound);
 
+	public void setMaxPivots(long maxPivots);
+
 	public void solve();
 
 	public double getVarUB(V variable);
@@ -48,10 +50,16 @@ public interface LpSolver<V, C, O> {
 
 	public double getObjValue();
 
+	public long getNumPivots();
+
 	public ObjectiveSense getObjectiveSense(O objective);
 
 	public SolutionStatus getSolutionStatus();
 
 	public void destory();
+
+	public void saveBasis(String key);
+
+	public void setBasis(String key);
 
 }

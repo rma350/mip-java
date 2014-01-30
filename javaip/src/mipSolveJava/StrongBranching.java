@@ -4,6 +4,8 @@ import java.util.List;
 
 import lpSolveBase.BasicLpSolver;
 
+import com.google.common.collect.Lists;
+
 public class StrongBranching implements VariableBranchSelector {
 
 	private BasicLpSolver basicLpSolver;
@@ -19,13 +21,18 @@ public class StrongBranching implements VariableBranchSelector {
 			List<Boolean> integerVariables) {
 		double bestScore = -1;
 		int bestIndex = -1;
+		List<Long> pivots = Lists.newArrayList();
+		String basisFile = "strongBranchBasis";
+		basicLpSolver.saveBasis(basisFile);
 		for (int i = 0; i < integerVariables.size(); i++) {
 			if (integerVariables.get(i) && !solution.indexIntegral(i)) {
 				// increase the lower bound
+
 				double initLowerBound = basicLpSolver.getVarLB(i);
 				basicLpSolver.setVarLB(i,
 						Math.ceil(solution.getVariableValues()[i]));
 				basicLpSolver.solve();
+				pivots.add(basicLpSolver.getNumPivots());
 				double bestBoundImprovementChangingLower = Math.abs(solution
 						.getObjValue() - basicLpSolver.getObjValue());
 				// clean up
@@ -55,8 +62,10 @@ public class StrongBranching implements VariableBranchSelector {
 					bestScore = score;
 					bestIndex = i;
 				}
+				basicLpSolver.setBasis(basisFile);
 			}
 		}
+		System.out.println("Pivots: " + pivots);
 		if (bestIndex >= 0) {
 			return bestIndex;
 		}

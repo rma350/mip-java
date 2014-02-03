@@ -1,6 +1,5 @@
 package mipSolveJava;
 
-import java.text.DecimalFormat;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
@@ -9,15 +8,19 @@ import lpSolveBase.BasicLpSolver;
 import lpSolveBase.ObjectiveSense;
 import lpSolveBase.SolutionStatus;
 import mipSolveBase.CutCallback;
-import mipSolveBase.CutCallbackLogger;
-import mipSolveBase.CutCallbackLogger.CutCallbackLog;
 import mipSolveBase.CutCallbackMipView;
 import mipSolveBase.MipSolver;
+import mipSolveBase.logging.CutCallbackLogger;
+import mipSolveBase.logging.CutCallbackLogger.CutCallbackLog;
+import mipSolveJava.logging.MipLog;
+import mipSolveJava.logging.MipLogFormatter;
+import mipSolveJava.logging.NodeFormatter;
+import mipSolveJava.logging.NodeLog;
+import mipSolveJava.logging.NodeLog.NewSolutionStatus;
 
 import org.apache.commons.math3.util.OpenIntToDoubleHashMap;
 
 import com.google.common.base.Optional;
-import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 
 import easy.EasyLp;
@@ -45,11 +48,13 @@ public class MipSolverImpl implements MipSolver {
 
 	private CutCallbackMipView cutCallbackMipView;
 
-	private CutCallbackLogger userCutCallbackLogger;
-	private CutCallbackLogger lazyConstraintCallbackLogger;
+	private MipLog mipLog;
+	private NodeFormatter nodeFormatter;
+	private MipLogFormatter mipLogFormatter;
 
 	public MipSolverImpl() {
 		this(EasyLp.easyLpSolver());
+
 	}
 
 	public MipSolverImpl(BasicLpSolver basicLpSolver) {
@@ -68,116 +73,128 @@ public class MipSolverImpl implements MipSolver {
 		variableUpperBoundsToRestore = new OpenIntToDoubleHashMap();
 		this.userCutCallbacks = Lists.newArrayList();
 		this.lazyConstraintCallbacks = Lists.newArrayList();
-		this.userCutCallbackLogger = new CutCallbackLogger();
-		this.lazyConstraintCallbackLogger = new CutCallbackLogger();
+		this.mipLog = new MipLog();
 		cutCallbackMipView = new CutCallbackMipViewImpl();
+
+		this.nodeFormatter = new NodeFormatter(NodeFormatter.Mode.FIXED_WIDTH);
+		this.mipLogFormatter = new MipLogFormatter();
 
 	}
 
-	private static DecimalFormat logsFormat = new DecimalFormat("#.00");
+	private void setBasicNodeLogInfo(Node node, NodeLog nodeLog) {
+		nodeLog.setBestBound(node.getBestBound());
+		nodeLog.setCurrentNode(node.getId());
+		nodeLog.setIncumbent(this.incumbent.isPresent() ? Optional
+				.of(this.incumbent.get().getObjValue()) : Optional
+				.<Double> absent());
+		nodeLog.setNodesCreated(this.nodesCreated);
+		nodeLog.setNodeStackSize(this.nodeStack.size());
+		SolutionStatus solutionStatus = basicLpSolver.getSolutionStatus();
+		nodeLog.setCurrentLpStatus(solutionStatus);
+		if (solutionStatus == SolutionStatus.OPTIMAL
+				|| solutionStatus == SolutionStatus.FEASIBLE) {
+			nodeLog.setCurrentLp(Optional.of(basicLpSolver.getObjValue()));
+		} else {
+			nodeLog.setCurrentLp(Optional.<Double> absent());
+		}
+		nodeLog.setNewSolutionStatus(NewSolutionStatus.NONE);
+		this.mipLog.setLastNodeLog(nodeLog);
+		this.mipLog.onNewNode();
+	}
+
+	private void printNode() {
+		System.out.println(this.nodeFormatter.format(mipLog));
+	}
+
+	/** Returns true if we have reached a termination condition. */
+	private boolean processNode(Node nextNode, NodeLog log) {
+		if (this.incumbent.isPresent() && nextNode.getBestBound().isPresent()) {
+			if (Math.abs(this.incumbent.get().getObjValue()
+					- nextNode.getBestBound().get()) < mipNodeCompareTol) {
+				return true;
+			}
+		}
+		configureLp(nextNode);
+		this.mipLog.getLpTimer().tic();
+		basicLpSolver.solve();
+		this.mipLog.getLpTimer().toc();
+		setBasicNodeLogInfo(nextNode, log);
+		if (basicLpSolver.getSolutionStatus() == SolutionStatus.UNBOUNDED) {
+			this.solutionStatus = SolutionStatus.INFEASIBLE_OR_UNBOUNDED;
+			return true;
+		} else if (basicLpSolver.getSolutionStatus() == SolutionStatus.INFEASIBLE) {
+			return false;
+		} else if (basicLpSolver.getSolutionStatus() == SolutionStatus.OPTIMAL
+				|| basicLpSolver.getSolutionStatus() == SolutionStatus.FEASIBLE) {
+			if (this.solutionStatus == SolutionStatus.UNKNOWN) {
+				this.solutionStatus = SolutionStatus.BOUNDED;
+			}
+			Solution solution = this.extractSolution();
+			if (pruneNode(solution.getObjValue())) {
+				return false;
+			}
+			if (solution.isIntegral()) {
+				this.proposeIntegerSolution(nextNode, solution, log);
+				return false;
+			} else {
+				boolean addedUserCutCallback = processCutCallbacks(nextNode,
+						this.userCutCallbacks, solution,
+						this.mipLog.getUserCutCallbackLog());
+				if (addedUserCutCallback) {
+					return false;
+				} else {
+					this.mipLog.getBranchingTimer().tic();
+					int branchVariable = variableBranchSelector
+							.selectVariableForBranching(solution,
+									this.integerVariables);
+					this.mipLog.getBranchingTimer().toc();
+					Node down = new Node(nodesCreated++,
+							solution.getObjValue(), nextNode);
+					down.getBranchingVariableUBs()
+							.put(branchVariable,
+									Math.floor(solution.getVariableValues()[branchVariable]));
+					this.nodeStack.add(down);
+					Node up = new Node(nodesCreated++, solution.getObjValue(),
+							nextNode);
+					up.getBranchingVariableLBs()
+							.put(branchVariable,
+									Math.ceil(solution.getVariableValues()[branchVariable]));
+					this.nodeStack.add(up);
+					return false;
+				}
+			}
+		} else {
+			throw new RuntimeException("Unexpected solution status: "
+					+ basicLpSolver.getSolutionStatus());
+		}
+	}
 
 	@Override
 	public void solve() {
+
 		Optional<ObjectiveSense> objectiveSense = basicLpSolver.getObjSense();
 		this.nodeSelector = objectiveSense.isPresent() ? BestBoundNodeSelector
 				.getBestBoundNodeSelector(objectiveSense.get())
 				: DiveNodeSelector.INSTANCE;
 		this.nodeStack = new PriorityQueue<Node>(10, nodeSelector);
+		mipLog.tic();
 		Node first = new Node(nodesCreated++, new OpenIntToDoubleHashMap(),
 				new OpenIntToDoubleHashMap(), Optional.<Double> absent());
 		nodeStack.add(first);
-		int columnWidth = 18;
-		String[] columnHeaders = { "nodes created", "node stack size",
-				"current node", "current LP", "best bound", "incumbent", "cuts" };
-		for (String header : columnHeaders) {
-			System.out.print(Strings.padStart(header, columnWidth, ' '));
-		}
-		System.out.println();
+		System.out.println(this.nodeFormatter.header());
 		while (!nodeStack.isEmpty()) {
 			Node nextNode = nodeStack.poll();
-			if (this.incumbent.isPresent()
-					&& nextNode.getBestBound().isPresent()) {
-				if (Math.abs(this.incumbent.get().getObjValue()
-						- nextNode.getBestBound().get()) < mipNodeCompareTol) {
-					break;
-				}
-			}
-			configureLp(nextNode);
-			basicLpSolver.solve();
-			// System.out.println("lp solution status: "
-			// + basicLpSolver.getSolutionStatus());
-			// System.out.println("lp solution value: "
-			// + basicLpSolver.getObjValue());
-			// System.out.println("lp var values: " +
-			// basicLpSolver.getVarValue(0)
-			// + ", " + basicLpSolver.getVarValue(1));
+			NodeLog log = new NodeLog();
 
-			if (basicLpSolver.getSolutionStatus() == SolutionStatus.UNBOUNDED) {
-				// if(this.incumbent.isPresent()){
-				// this.solutionStatus = SolutionStatus.UNBOUNDED;
-				// }
-				// else{
-				this.solutionStatus = SolutionStatus.INFEASIBLE_OR_UNBOUNDED;
-				// }
-				return;
-			} else if (basicLpSolver.getSolutionStatus() == SolutionStatus.INFEASIBLE) {
-				continue;
-			} else if (basicLpSolver.getSolutionStatus() == SolutionStatus.OPTIMAL
-					|| basicLpSolver.getSolutionStatus() == SolutionStatus.FEASIBLE) {
-				if (this.solutionStatus == SolutionStatus.UNKNOWN) {
-					this.solutionStatus = SolutionStatus.BOUNDED;
-				}
-				Solution solution = this.extractSolution();
-				String[] columnValues = {
-						"" + this.nodesCreated,
-						"" + this.nodeStack.size(),
-						"" + nextNode.getId(),
-						logsFormat.format(solution.getObjValue()),
-						nextNode.getBestBound().isPresent() ? logsFormat
-								.format(nextNode.getBestBound().get()
-										.doubleValue()) : "?",
-						(this.incumbent.isPresent() ? logsFormat
-								.format(this.incumbent.get().getObjValue())
-								: "?"),
-						this.userCutCallbackLogger.getNodeLogString() };
-				for (String value : columnValues) {
-					System.out.print(Strings.padStart(value, columnWidth, ' '));
-				}
-				System.out.println();
-				if (pruneNode(solution.getObjValue())) {
-					continue;
-				}
-				if (solution.isIntegral()) {
-					this.proposeIntegerSolution(nextNode, solution);
-				} else {
-					boolean addedUserCutCallback = processCutCallbacks(
-							nextNode, this.userCutCallbacks, solution,
-							this.userCutCallbackLogger);
-					if (addedUserCutCallback) {
-
-					} else {
-						int branchVariable = variableBranchSelector
-								.selectVariableForBranching(solution,
-										this.integerVariables);
-						Node down = new Node(nodesCreated++,
-								solution.getObjValue(), nextNode);
-						down.getBranchingVariableUBs()
-								.put(branchVariable,
-										Math.floor(solution.getVariableValues()[branchVariable]));
-						this.nodeStack.add(down);
-						Node up = new Node(nodesCreated++,
-								solution.getObjValue(), nextNode);
-						up.getBranchingVariableLBs()
-								.put(branchVariable,
-										Math.ceil(solution.getVariableValues()[branchVariable]));
-						this.nodeStack.add(up);
-					}
-				}
+			boolean terminated = processNode(nextNode, log);
+			if (terminated) {
+				break;
 			} else {
-				throw new RuntimeException("Unexpected solution status: "
-						+ basicLpSolver.getSolutionStatus());
+				this.printNode();
 			}
 		}
+		mipLog.toc();
+		System.out.println(mipLogFormatter.format(mipLog));
 		if (this.incumbent.isPresent()) {
 			solutionStatus = SolutionStatus.OPTIMAL;
 		} else {
@@ -310,17 +327,19 @@ public class MipSolverImpl implements MipSolver {
 		cutCallbackLogger.onStartCallback();
 		for (CutCallback cutCallback : cutCallbacks) {
 			CutCallbackLog log = cutCallbackLogger.getLog(cutCallback);
-			int constraintCountThisCallback = this.getNumConstrs();
-			log.onAttempt();
-			boolean keepLooking = cutCallback.onCallback(this
-					.getCutCallbackMipView());
-			int newConstraints = this.getNumConstrs()
-					- constraintCountThisCallback;
-			for (int i = 0; i < newConstraints; i++) {
-				log.onCut();
-			}
-			if (!keepLooking) {
-				break;
+			if (cutCallback.skipCallback(getCutCallbackMipView())) {
+				log.onSkipped();
+			} else {
+				int constraintCountThisCallback = this.getNumConstrs();
+				log.cutTic();
+				boolean keepLooking = cutCallback.onCallback(this
+						.getCutCallbackMipView());
+				int newConstraints = this.getNumConstrs()
+						- constraintCountThisCallback;
+				log.cutToc(newConstraints);
+				if (!keepLooking) {
+					break;
+				}
 			}
 		}
 		boolean constraintAdded = constraintCount < this.getNumConstrs();
@@ -331,15 +350,16 @@ public class MipSolverImpl implements MipSolver {
 		return constraintAdded;
 	}
 
-	private void proposeIntegerSolution(Node sourceNode, Solution solution) {
-		System.out.println("Found integer solution: " + solution.getObjValue());
-
+	private void proposeIntegerSolution(Node sourceNode, Solution solution,
+			NodeLog nodeLog) {
 		boolean constrAdded = processCutCallbacks(sourceNode,
 				this.lazyConstraintCallbacks, solution,
-				this.lazyConstraintCallbackLogger);
+				this.mipLog.getLazyConstraintCallbackLog());
 		if (constrAdded) {
-			System.out.println("Pruned solution in lazy callback!");
+
 		} else {
+			nodeLog.setIncumbent(Optional.of(solution.getObjValue()));
+			nodeLog.setNewSolutionStatus(NewSolutionStatus.INTEGRAL);
 			this.solutionStatus = SolutionStatus.FEASIBLE;
 			this.incumbent = Optional.of(solution);
 		}
@@ -426,13 +446,13 @@ public class MipSolverImpl implements MipSolver {
 
 	@Override
 	public void addLazyConstraintCallback(CutCallback cutCallback) {
-		this.lazyConstraintCallbackLogger.onAddCallback(cutCallback);
+		this.mipLog.getLazyConstraintCallbackLog().onAddCallback(cutCallback);
 		this.lazyConstraintCallbacks.add(cutCallback);
 	}
 
 	@Override
 	public void addUserCutCallback(CutCallback cutCallback) {
-		this.userCutCallbackLogger.onAddCallback(cutCallback);
+		this.mipLog.getUserCutCallbackLog().onAddCallback(cutCallback);
 		this.userCutCallbacks.add(cutCallback);
 	}
 

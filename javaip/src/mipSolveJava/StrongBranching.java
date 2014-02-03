@@ -10,10 +10,12 @@ public class StrongBranching implements VariableBranchSelector {
 
 	private BasicLpSolver basicLpSolver;
 	private double fractionUseMinimumImprovement;
+	private boolean cacheBasis;
 
 	public StrongBranching(BasicLpSolver basicLpSolver) {
 		this.basicLpSolver = basicLpSolver;
-		this.fractionUseMinimumImprovement = .9;
+		this.fractionUseMinimumImprovement = .5;
+		this.cacheBasis = false;
 	}
 
 	@Override
@@ -23,7 +25,9 @@ public class StrongBranching implements VariableBranchSelector {
 		int bestIndex = -1;
 		List<Long> pivots = Lists.newArrayList();
 		String basisFile = "strongBranchBasis";
-		basicLpSolver.saveBasis(basisFile);
+		if (cacheBasis) {
+			basicLpSolver.saveBasis(basisFile);
+		}
 		for (int i = 0; i < integerVariables.size(); i++) {
 			if (integerVariables.get(i) && !solution.indexIntegral(i)) {
 				// increase the lower bound
@@ -62,7 +66,9 @@ public class StrongBranching implements VariableBranchSelector {
 					bestScore = score;
 					bestIndex = i;
 				}
-				basicLpSolver.setBasis(basisFile);
+				if (cacheBasis) {
+					basicLpSolver.setBasis(basisFile);
+				}
 			}
 		}
 		System.out.println("Pivots: " + pivots);

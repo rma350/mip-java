@@ -8,6 +8,7 @@ import org.junit.experimental.theories.Theory;
 import org.junit.runner.RunWith;
 
 import easy.EasyMip.SolverType;
+//import static org.junit.Assume.assumeTrue;
 
 @RunWith(Theories.class)
 public class TspTest {

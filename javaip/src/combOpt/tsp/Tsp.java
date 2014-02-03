@@ -118,9 +118,6 @@ public class Tsp {
 
 		@Override
 		public boolean onCallback(CutCallbackMipView mipView) {
-			if (rootOnly && mipView.nodesCreated() > 1) {
-				return true;
-			}
 			Map<Edge, Double> edgeValues = Maps.newHashMap();
 			for (Edge edge : graph.edgeSet()) {
 				edgeValues.put(edge, mipView.getLPVarValue(edgeVars.get(edge)));
@@ -150,6 +147,11 @@ public class Tsp {
 			}
 			return false;
 		}
+
+		@Override
+		public boolean skipCallback(CutCallbackMipView mipView) {
+			return rootOnly && mipView.nodesCreated() > 1;
+		}
 	}
 
 	private class ConnectedCallback implements CutCallback {
@@ -168,24 +170,38 @@ public class Tsp {
 
 		@Override
 		public boolean onCallback(CutCallbackMipView mipView) {
-			if (rootOnly && mipView.nodesCreated() > 1) {
-				return true;
-			}
+			long startTime = System.currentTimeMillis();
+			System.out.println("starting callback");
 			final Map<Edge, Double> edgeValues = Maps.newHashMap();
 			for (Edge edge : graph.edgeSet()) {
 				edgeValues.put(edge, mipView.getLPVarValue(edgeVars.get(edge)));
 			}
+			System.out.println("read edge values. "
+					+ (System.currentTimeMillis() - startTime));
 			List<Set<Node>> connectedComponents = ConnectedComponents
 					.connectedComponents(Subgraphs.onlyEdges(graph.getGraph(),
 							new NonZeroEdgeWeights(edgeValues)));
+			System.out.println("found connected component. "
+					+ (System.currentTimeMillis() - startTime));
 			if (connectedComponents.size() <= 1) {
+				System.out.println("done. "
+						+ (System.currentTimeMillis() - startTime));
 				return true;
 			}
+			System.out.println("adding constraints: "
+					+ connectedComponents.size() + ". "
+					+ (System.currentTimeMillis() - startTime));
 			for (int i = 0; i < connectedComponents.size() - 1; i++) {
 				addCutsetConstraint(connectedComponents.get(i), mipView);
-
 			}
+			System.out.println("done. "
+					+ (System.currentTimeMillis() - startTime));
 			return false;
+		}
+
+		@Override
+		public boolean skipCallback(CutCallbackMipView mipView) {
+			return rootOnly && mipView.nodesCreated() > 1;
 		}
 	}
 

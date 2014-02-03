@@ -50,6 +50,11 @@ public class LazyConstraintIntegrationTest {
 				}
 				return true;
 			}
+
+			@Override
+			public boolean skipCallback(CutCallbackMipView cutCallbackMipView) {
+				return false;
+			}
 		};
 		mipSolver.addLazyConstraintCallback(lazyCallback);
 		mipSolver.solve();

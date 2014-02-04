@@ -106,7 +106,7 @@ public class NodeFormatter {
 		public String format(MipLog mipLog);
 	}
 
-	private static DecimalFormat logsFormat = new DecimalFormat("#.00");
+	private static DecimalFormat logsFormat = new DecimalFormat("#0.00");
 
 	private static ImmutableMap<Field, FieldFormatter> defaultFormatters;
 	static {

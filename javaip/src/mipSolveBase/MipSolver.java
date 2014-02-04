@@ -3,6 +3,8 @@ package mipSolveBase;
 import lpSolveBase.ObjectiveSense;
 import lpSolveBase.SolutionStatus;
 
+import org.apache.commons.math3.util.OpenIntToDoubleHashMap;
+
 import com.google.common.base.Optional;
 
 public interface MipSolver {
@@ -67,5 +69,7 @@ public interface MipSolver {
 	public void addLazyConstraintCallback(CutCallback cutCallback);
 
 	public void addUserCutCallback(CutCallback cutCallback);
+
+	public void suggestAdvancedStart(OpenIntToDoubleHashMap solution);
 
 }

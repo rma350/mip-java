@@ -1,6 +1,8 @@
 package lpSolveCplex;
 
 import ilog.concert.IloException;
+import ilog.concert.IloLinearNumExpr;
+import ilog.concert.IloLinearNumExprIterator;
 import ilog.concert.IloNumVar;
 import ilog.concert.IloObjective;
 import ilog.concert.IloRange;
@@ -8,6 +10,9 @@ import ilog.cplex.IloCplex;
 import ilog.cplex.IloCplex.LongParam;
 import ilog.cplex.IloCplex.Status;
 import ilog.cplex.IloCplex.UnknownObjectException;
+
+import java.util.Map;
+
 import lpSolveBase.AbstractLpSolver;
 import lpSolveBase.ObjectiveSense;
 import lpSolveBase.SolutionStatus;
@@ -227,5 +232,48 @@ public class LpSolveCplex extends
 			throw new RuntimeException(e);
 		}
 
+	}
+
+	/**
+	 * Warning: this runs in linear time!!! :(
+	 * 
+	 * @param variable
+	 * @param objective
+	 * @return
+	 */
+	@Override
+	public double getObjCoef(IloNumVar variable, IloObjective objective) {
+		IloLinearNumExprIterator it;
+		try {
+			it = ((IloLinearNumExpr) objective.getExpr()).linearIterator();
+		} catch (IloException e) {
+			throw new RuntimeException(e);
+		}
+		while (it.hasNext()) {
+			IloNumVar next = it.nextNumVar();
+			if (next == variable) {
+				return it.getValue();
+			}
+		}
+		return 0;
+	}
+
+	@Override
+	public double evaluateObj(Map<IloNumVar, Double> varVals,
+			IloObjective objective) {
+		double ans = 0;
+		IloLinearNumExprIterator it;
+		try {
+			it = ((IloLinearNumExpr) objective.getExpr()).linearIterator();
+		} catch (IloException e) {
+			throw new RuntimeException(e);
+		}
+		while (it.hasNext()) {
+			IloNumVar next = it.nextNumVar();
+			if (varVals.containsKey(next)) {
+				ans += it.getValue() * varVals.get(next);
+			}
+		}
+		return ans;
 	}
 }

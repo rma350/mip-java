@@ -1,5 +1,7 @@
 package wrappedMipSolver;
 
+import java.util.Map;
+
 import lpSolveBase.ObjectiveSense;
 import lpSolveBase.SolutionStatus;
 
@@ -63,5 +65,7 @@ public interface MipSolverWrapper<V, C, O> {
 			WrappedCutCallback<V, C, O> lazyConstrCallback);
 
 	public void addUserCutCallback(WrappedCutCallback<V, C, O> userCutCallback);
+
+	public void suggestAdvancedStart(Map<V, Double> solution);
 
 }

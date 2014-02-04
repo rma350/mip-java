@@ -1,9 +1,14 @@
 package lpSolveBase;
 
 import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.math3.util.OpenIntToDoubleHashMap;
+import org.apache.commons.math3.util.OpenIntToDoubleHashMap.Iterator;
 
 import com.google.common.base.Optional;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 public class BasicLpSolverImpl<V, C, O> implements BasicLpSolver {
 
@@ -159,6 +164,24 @@ public class BasicLpSolverImpl<V, C, O> implements BasicLpSolver {
 	@Override
 	public void setBasis(String key) {
 		lpSolver.setBasis(key);
+	}
+
+	@Override
+	public double getObjCoef(int variableIndex) {
+		return lpSolver.getObjCoef(variables.get(variableIndex),
+				this.objective.get());
+	}
+
+	@Override
+	public double evaluateObjective(OpenIntToDoubleHashMap varVals) {
+		Map<V, Double> convertedSolution = Maps.newHashMap();
+		for (Iterator it = varVals.iterator(); it.hasNext();) {
+			it.advance();
+			int key = it.key();
+			double val = it.value();
+			convertedSolution.put(this.variables.get(key), val);
+		}
+		return lpSolver.evaluateObj(convertedSolution, objective.get());
 	}
 
 }

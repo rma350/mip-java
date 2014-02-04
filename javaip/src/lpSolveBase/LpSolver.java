@@ -1,5 +1,7 @@
 package lpSolveBase;
 
+import java.util.Map;
+
 /**
  * 
  * @author ross
@@ -43,6 +45,25 @@ public interface LpSolver<V, C, O> {
 	public double getVarUB(V variable);
 
 	public double getVarLB(V variable);
+
+	/**
+	 * Warning: will run in linear time if CPLEX is used as LP solver
+	 * 
+	 * @param variable
+	 * @param objective
+	 * @return
+	 */
+	public double getObjCoef(V variable, O objective);
+
+	/**
+	 * Runs in linear time if CPLEX is used as LP solver. Preferable to
+	 * getObjCoef.
+	 * 
+	 * @param varVals
+	 * @param objective
+	 * @return
+	 */
+	public double evaluateObj(Map<V, Double> varVals, O objective);
 
 	public double getVarValue(V variable);
 

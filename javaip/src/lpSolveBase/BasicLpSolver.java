@@ -1,5 +1,7 @@
 package lpSolveBase;
 
+import org.apache.commons.math3.util.OpenIntToDoubleHashMap;
+
 import com.google.common.base.Optional;
 
 public interface BasicLpSolver {
@@ -44,6 +46,16 @@ public interface BasicLpSolver {
 	public double getVarLB(int variableIndex);
 
 	public double getVarUB(int variableIndex);
+
+	/**
+	 * Warning: will run in linear time if base LP solver is CPLEX.
+	 * 
+	 * @param variableIndex
+	 * @return
+	 */
+	public double getObjCoef(int variableIndex);
+
+	public double evaluateObjective(OpenIntToDoubleHashMap varVals);
 
 	public void destroy();
 

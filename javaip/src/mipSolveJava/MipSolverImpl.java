@@ -52,6 +52,8 @@ public class MipSolverImpl implements MipSolver {
 	private NodeFormatter nodeFormatter;
 	private MipLogFormatter mipLogFormatter;
 
+	private List<OpenIntToDoubleHashMap> advancedStartSuggestions;
+
 	public MipSolverImpl() {
 		this(EasyLp.easyLpSolver());
 
@@ -67,7 +69,8 @@ public class MipSolverImpl implements MipSolver {
 		incumbent = Optional.absent();
 		this.nodesCreated = 0;
 		this.solutionStatus = SolutionStatus.UNKNOWN;
-		this.variableBranchSelector = new StrongBranching(this.basicLpSolver);// VariableBranchMostFractionalRandomized.INSTANCE;
+		this.variableBranchSelector = new VariableBranchPsuedoCost(
+				this.basicLpSolver);// VariableBranchMostFractionalRandomized.INSTANCE;
 
 		variableLowerBoundsToRestore = new OpenIntToDoubleHashMap();
 		variableUpperBoundsToRestore = new OpenIntToDoubleHashMap();
@@ -78,6 +81,7 @@ public class MipSolverImpl implements MipSolver {
 
 		this.nodeFormatter = new NodeFormatter(NodeFormatter.Mode.FIXED_WIDTH);
 		this.mipLogFormatter = new MipLogFormatter();
+		this.advancedStartSuggestions = Lists.newArrayList();
 
 	}
 
@@ -108,12 +112,6 @@ public class MipSolverImpl implements MipSolver {
 
 	/** Returns true if we have reached a termination condition. */
 	private boolean processNode(Node nextNode, NodeLog log) {
-		if (this.incumbent.isPresent() && nextNode.getBestBound().isPresent()) {
-			if (Math.abs(this.incumbent.get().getObjValue()
-					- nextNode.getBestBound().get()) < mipNodeCompareTol) {
-				return true;
-			}
-		}
 		configureLp(nextNode);
 		this.mipLog.getLpTimer().tic();
 		basicLpSolver.solve();
@@ -130,7 +128,7 @@ public class MipSolverImpl implements MipSolver {
 				this.solutionStatus = SolutionStatus.BOUNDED;
 			}
 			Solution solution = this.extractSolution();
-			if (pruneNode(solution.getObjValue())) {
+			if (isBeatenByIncumbent(solution.getObjValue())) {
 				return false;
 			}
 			if (solution.isIntegral()) {
@@ -169,6 +167,41 @@ public class MipSolverImpl implements MipSolver {
 		}
 	}
 
+	private Solution advancedStartToSolution(
+			OpenIntToDoubleHashMap advancedStart) {
+		double[] values = new double[basicLpSolver.getNumVars()];
+		for (int i = 0; i < values.length; i++) {
+			if (advancedStart.containsKey(i)) {
+				values[i] = advancedStart.get(i);
+			} else {
+				return null;
+			}
+		}
+		return new Solution(
+				this.basicLpSolver.evaluateObjective(advancedStart), values,
+				this.integralityTol, this.integerVariables);
+	}
+
+	// TODO: check advanced start to make sure lazy constraints are not
+	// violated?? Also check regular constraints?
+	private void checkAdvancedStarts() {
+		for (OpenIntToDoubleHashMap advancedStart : this.advancedStartSuggestions) {
+			Solution solution = this.advancedStartToSolution(advancedStart);
+			if (solution != null
+					&& !this.isBeatenByIncumbent(solution.getObjValue())
+					&& solution.isIntegral()) {
+				// boolean constrAdded = processCutCallbacks(sourceNode,
+				// this.lazyConstraintCallbacks, solution,
+				// this.mipLog.getLazyConstraintCallbackLog());
+				// if (!constrAdded) {
+				this.solutionStatus = SolutionStatus.FEASIBLE;
+				this.incumbent = Optional.of(solution);
+				// }
+			}
+		}
+
+	}
+
 	@Override
 	public void solve() {
 
@@ -178,14 +211,24 @@ public class MipSolverImpl implements MipSolver {
 				: DiveNodeSelector.INSTANCE;
 		this.nodeStack = new PriorityQueue<Node>(10, nodeSelector);
 		mipLog.tic();
+		checkAdvancedStarts();
+		if (this.incumbent.isPresent()) {
+			System.out.println("Advanced start found solution: "
+					+ incumbent.get().getObjValue());
+		}
 		Node first = new Node(nodesCreated++, new OpenIntToDoubleHashMap(),
 				new OpenIntToDoubleHashMap(), Optional.<Double> absent());
 		nodeStack.add(first);
 		System.out.println(this.nodeFormatter.header());
 		while (!nodeStack.isEmpty()) {
 			Node nextNode = nodeStack.poll();
+			if (this.incumbent.isPresent()
+					&& nextNode.getBestBound().isPresent()) {
+				if (isBeatenByIncumbent(nextNode.getBestBound().get())) {
+					break;
+				}
+			}
 			NodeLog log = new NodeLog();
-
 			boolean terminated = processNode(nextNode, log);
 			if (terminated) {
 				break;
@@ -238,7 +281,7 @@ public class MipSolverImpl implements MipSolver {
 		this.basicLpSolver.destroy();
 	}
 
-	private boolean pruneNode(double objAttained) {
+	private boolean isBeatenByIncumbent(double objAttained) {
 		if (!incumbent.isPresent()) {
 			return false;
 		}
@@ -363,7 +406,6 @@ public class MipSolverImpl implements MipSolver {
 			this.solutionStatus = SolutionStatus.FEASIBLE;
 			this.incumbent = Optional.of(solution);
 		}
-
 	}
 
 	@Override
@@ -497,6 +539,11 @@ public class MipSolverImpl implements MipSolver {
 			MipSolverImpl.this.setConstrLB(constrIndex, value);
 		}
 
+	}
+
+	@Override
+	public void suggestAdvancedStart(OpenIntToDoubleHashMap solution) {
+		this.advancedStartSuggestions.add(solution);
 	}
 
 }

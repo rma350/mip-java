@@ -16,6 +16,7 @@ import ilog.cplex.IloCplex.UserCutCallback;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import lpSolveBase.ObjectiveSense;
@@ -499,6 +500,23 @@ public class MipSolverCplex implements
 			}
 		}
 
+	}
+
+	@Override
+	public void suggestAdvancedStart(Map<IloNumVar, Double> solution) {
+		IloNumVar[] vars = new IloNumVar[solution.size()];
+		double[] vals = new double[solution.size()];
+		int i = 0;
+		for (Entry<IloNumVar, Double> entry : solution.entrySet()) {
+			vars[i] = entry.getKey();
+			vals[i] = entry.getValue();
+			i++;
+		}
+		try {
+			this.cplex.addMIPStart(vars, vals);
+		} catch (IloException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	/*

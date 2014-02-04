@@ -1,15 +1,21 @@
 package mipSolveBase;
 
 import java.util.List;
+import java.util.Map;
 
 import lpSolveBase.ObjectiveSense;
 import lpSolveBase.SolutionStatus;
+
+import org.apache.commons.math3.util.OpenIntToDoubleHashMap;
+import org.apache.commons.math3.util.OpenIntToDoubleHashMap.Iterator;
+
 import wrappedMipSolver.MipSolverWrapper;
 import wrappedMipSolver.WrappedCutCallback;
 import wrappedMipSolver.WrappedCutCallbackMipView;
 
 import com.google.common.base.Optional;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 public class WrappedMipSolver<V, C, O> implements MipSolver {
 
@@ -241,6 +247,18 @@ public class WrappedMipSolver<V, C, O> implements MipSolver {
 					constraints.get(constrIndex), value);
 		}
 
+	}
+
+	@Override
+	public void suggestAdvancedStart(OpenIntToDoubleHashMap solution) {
+		Map<V, Double> convertedSolution = Maps.newHashMap();
+		for (Iterator it = solution.iterator(); it.hasNext();) {
+			it.advance();
+			int key = it.key();
+			double val = it.value();
+			convertedSolution.put(this.variables.get(key), val);
+		}
+		this.wrappedSolver.suggestAdvancedStart(convertedSolution);
 	}
 
 }

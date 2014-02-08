@@ -3,6 +3,7 @@ package mipSolveJava;
 import java.util.List;
 
 import lpSolveBase.BasicLpSolver;
+import lpSolveBase.SolutionStatus;
 
 public abstract class BestScoreBranching implements VariableBranchSelector {
 
@@ -21,6 +22,10 @@ public abstract class BestScoreBranching implements VariableBranchSelector {
 	}
 
 	public double score(double branchDownImprovement, double branchUpImprovement) {
+		if (Math.abs(IMPROVEMENT_INFEASIBLE - branchDownImprovement) < .01
+				|| Math.abs(IMPROVEMENT_INFEASIBLE - branchUpImprovement) < .01) {
+			return IMPROVEMENT_INFEASIBLE;
+		}
 		double maximumImprovement = Math.max(branchDownImprovement,
 				branchUpImprovement);
 		double minimumImprovement = Math.min(branchDownImprovement,
@@ -30,15 +35,25 @@ public abstract class BestScoreBranching implements VariableBranchSelector {
 		return score;
 	}
 
+	public static double IMPROVEMENT_INFEASIBLE = -1;
+
 	public double computeExactObjectiveImprovementBranchingUp(
 			Solution solution, int variableIndex) {
 		double initLowerBound = basicLpSolver.getVarLB(variableIndex);
 		basicLpSolver.setVarLB(variableIndex,
 				Math.ceil(solution.getVariableValues()[variableIndex]));
 		basicLpSolver.solve();
+		double bestBoundImprovementChangingLower;
+		if (basicLpSolver.getSolutionStatus() == SolutionStatus.INFEASIBLE
+				|| basicLpSolver.getSolutionStatus() == SolutionStatus.INFEASIBLE_OR_UNBOUNDED) {
+			System.err
+					.println("Warning: found infeasible solution while branching, doing a hack");
+			bestBoundImprovementChangingLower = IMPROVEMENT_INFEASIBLE;
+		} else {
+			bestBoundImprovementChangingLower = Math.abs(solution.getObjValue()
+					- basicLpSolver.getObjValue());
+		}
 
-		double bestBoundImprovementChangingLower = Math.abs(solution
-				.getObjValue() - basicLpSolver.getObjValue());
 		// clean up
 		basicLpSolver.setVarLB(variableIndex, initLowerBound);
 		if (cacheBasis
@@ -55,8 +70,17 @@ public abstract class BestScoreBranching implements VariableBranchSelector {
 		basicLpSolver.setVarUB(variableIndex,
 				Math.floor(solution.getVariableValues()[variableIndex]));
 		basicLpSolver.solve();
-		double bestBoundImprovementChangingUpper = Math.abs(solution
-				.getObjValue() - basicLpSolver.getObjValue());
+
+		double bestBoundImprovementChangingUpper;
+		if (basicLpSolver.getSolutionStatus() == SolutionStatus.INFEASIBLE
+				|| basicLpSolver.getSolutionStatus() == SolutionStatus.INFEASIBLE_OR_UNBOUNDED) {
+			System.err
+					.println("Warning: found infeasible solution while branching, doing a hack");
+			bestBoundImprovementChangingUpper = IMPROVEMENT_INFEASIBLE;
+		} else {
+			bestBoundImprovementChangingUpper = Math.abs(solution.getObjValue()
+					- basicLpSolver.getObjValue());
+		}
 		// clean up
 		basicLpSolver.setVarUB(variableIndex, initUpperBound);
 		if (cacheBasis
@@ -85,6 +109,9 @@ public abstract class BestScoreBranching implements VariableBranchSelector {
 		for (int i = 0; i < integerVariables.size(); i++) {
 			if (integerVariables.get(i) && !solution.indexIntegral(i)) {
 				double score = computeVariableScore(solution, i);
+				if (Math.abs(IMPROVEMENT_INFEASIBLE - score) < .01) {
+					return i;
+				}
 				if (score > bestScore) {
 					bestScore = score;
 					bestIndex = i;

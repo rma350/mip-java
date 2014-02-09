@@ -3,6 +3,8 @@ package mipSolveJava;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import lpSolveBase.BasicLpSolver;
 import lpSolveBase.ObjectiveSense;
@@ -21,6 +23,7 @@ import mipSolveJava.logging.NodeLog.NewSolutionStatus;
 import org.apache.commons.math3.util.OpenIntToDoubleHashMap;
 
 import com.google.common.base.Optional;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import easy.EasyLp;
@@ -40,11 +43,16 @@ public class MipSolverImpl implements MipSolver {
 	private OpenIntToDoubleHashMap variableUpperBoundsToRestore;
 
 	private SolutionStatus solutionStatus;
-	private Optional<Solution> incumbent;
+	private SortedSet<Solution> optimalSolutions;
+	private SortedSet<Solution> otherSolutions;
 
 	private long nodesCreated;
 	private List<CutCallback> userCutCallbacks;
 	private List<CutCallback> lazyConstraintCallbacks;
+
+	private Optional<CutCallback> excludeOptimumCallback;
+	private int numOptimalSolutions;
+	private int numExtraSolutionsRetained;
 
 	private CutCallbackMipView cutCallbackMipView;
 
@@ -56,7 +64,6 @@ public class MipSolverImpl implements MipSolver {
 
 	public MipSolverImpl() {
 		this(EasyLp.easyLpSolver());
-
 	}
 
 	public MipSolverImpl(BasicLpSolver basicLpSolver) {
@@ -66,7 +73,7 @@ public class MipSolverImpl implements MipSolver {
 			throw new RuntimeException("Must begin with a clean LP solver");
 		}
 		this.integerVariables = Lists.newArrayList();
-		incumbent = Optional.absent();
+
 		this.nodesCreated = 0;
 		this.solutionStatus = SolutionStatus.UNKNOWN;
 		this.variableBranchSelector = new VariableBranchPsuedoCost(
@@ -82,15 +89,48 @@ public class MipSolverImpl implements MipSolver {
 		this.nodeFormatter = new NodeFormatter(NodeFormatter.Mode.FIXED_WIDTH);
 		this.mipLogFormatter = new MipLogFormatter();
 		this.advancedStartSuggestions = Lists.newArrayList();
+		this.numOptimalSolutions = 1;
+		this.numExtraSolutionsRetained = 0;
+		this.excludeOptimumCallback = Optional.absent();
 
+	}
+
+	public SortedSet<Solution> getOptimalSolutions() {
+		return this.optimalSolutions;
+	}
+
+	public SortedSet<Solution> getFeasibleSolutions() {
+		return this.otherSolutions;
+	}
+
+	public void setNumSolutions(int numOptimalSolutions,
+			int numExtraSolutionsRetained, CutCallback excludeOptimumCallback) {
+		this.numOptimalSolutions = numOptimalSolutions;
+		this.numExtraSolutionsRetained = numExtraSolutionsRetained;
+		this.excludeOptimumCallback = Optional.of(excludeOptimumCallback);
+		this.mipLog.getExcludeOptimumCallbackLog().onAddCallback(
+				excludeOptimumCallback);
+	}
+
+	public void setNumSolutions(int numOptimalSolutions,
+			int numExtraSolutionsRetained) {
+		setNumSolutions(numOptimalSolutions, numExtraSolutionsRetained,
+				new DefaultExcludeOptimumCallback());
 	}
 
 	private void setBasicNodeLogInfo(Node node, NodeLog nodeLog) {
 		nodeLog.setBestBound(node.getBestBound());
 		nodeLog.setCurrentNode(node.getId());
-		nodeLog.setIncumbent(this.incumbent.isPresent() ? Optional
-				.of(this.incumbent.get().getObjValue()) : Optional
-				.<Double> absent());
+
+		if (!this.optimalSolutions.isEmpty()) {
+			nodeLog.setIncumbent(Optional.of(optimalSolutions.first()
+					.getObjValue()));
+		} else if (!this.otherSolutions.isEmpty()) {
+			nodeLog.setIncumbent(Optional.of(otherSolutions.first()
+					.getObjValue()));
+		} else {
+			nodeLog.setIncumbent(Optional.<Double> absent());
+		}
 		nodeLog.setNodesCreated(this.nodesCreated);
 		nodeLog.setNodeStackSize(this.nodeStack.size());
 		SolutionStatus solutionStatus = basicLpSolver.getSolutionStatus();
@@ -108,6 +148,20 @@ public class MipSolverImpl implements MipSolver {
 
 	private void printNode() {
 		System.out.println(this.nodeFormatter.format(mipLog));
+	}
+
+	private Optional<Solution> getCutoffSolution() {
+		if (this.optimalSolutions.size() >= this.numOptimalSolutions) {
+			return Optional.of(Iterables.get(this.optimalSolutions,
+					numOptimalSolutions - 1));
+		}
+		int indexOfCutoff = this.numOptimalSolutions
+				- this.optimalSolutions.size() - 1;
+		if (this.otherSolutions.size() > indexOfCutoff) {
+			return Optional.of(Iterables.get(otherSolutions, indexOfCutoff));
+		}
+		return Optional.absent();
+
 	}
 
 	/** Returns true if we have reached a termination condition. */
@@ -128,7 +182,10 @@ public class MipSolverImpl implements MipSolver {
 				this.solutionStatus = SolutionStatus.BOUNDED;
 			}
 			Solution solution = this.extractSolution();
-			if (isBeatenByIncumbent(solution.getObjValue())) {
+			Optional<Solution> cutoff = getCutoffSolution();
+			if (cutoff.isPresent()
+					&& this.solutionComparator.compare(solution, cutoff.get()) >= 0) {
+				// cutoff is better than this node, so we prune the node
 				return false;
 			}
 			if (solution.isIntegral()) {
@@ -187,58 +244,187 @@ public class MipSolverImpl implements MipSolver {
 	private void checkAdvancedStarts() {
 		for (OpenIntToDoubleHashMap advancedStart : this.advancedStartSuggestions) {
 			Solution solution = this.advancedStartToSolution(advancedStart);
-			if (solution != null
-					&& !this.isBeatenByIncumbent(solution.getObjValue())
-					&& solution.isIntegral()) {
+			if (solution != null && solution.isIntegral()) {
 				// boolean constrAdded = processCutCallbacks(sourceNode,
 				// this.lazyConstraintCallbacks, solution,
 				// this.mipLog.getLazyConstraintCallbackLog());
 				// if (!constrAdded) {
 				this.solutionStatus = SolutionStatus.FEASIBLE;
-				this.incumbent = Optional.of(solution);
+				submitFeasibleSolution(solution);
 				// }
 			}
 		}
-
 	}
+
+	public Optional<Double> currentBestBound() {
+		if (!this.basicLpSolver.getObjSense().isPresent()) {
+			return Optional.absent();
+		}
+		if (nodeStack.isEmpty()) {
+			return Optional.absent();
+		}
+		return nodeStack.peek().getBestBound();
+	}
+
+	private void submitFeasibleSolution(Solution solution) {
+		this.solutionStatus = SolutionStatus.FEASIBLE;
+		if (!this.basicLpSolver.getObjSense().isPresent()) {
+			this.optimalSolutions.add(solution);
+		} else {
+			this.otherSolutions.add(solution);
+		}
+	}
+
+	/** Best solution is first (low) */
+	private Comparator<Solution> bestSolution(
+			final Optional<ObjectiveSense> objectiveSense) {
+		return new Comparator<Solution>() {
+
+			@Override
+			public int compare(Solution arg0, Solution arg1) {
+				int ans = 0;
+				if (objectiveSense.isPresent()) {
+					ans = Double
+							.compare(arg0.getObjValue(), arg1.getObjValue());
+					;
+					if (objectiveSense.get() == ObjectiveSense.MAX) {
+						ans = -ans;
+					}
+				}
+				if (ans == 0) {
+					// need to break ties, otherwise treeset will treat
+					// solutions as equal
+					ans = arg0.getVariableValues().length
+							- arg1.getVariableValues().length;
+					if (ans == 0) {
+						for (int i = 0; i < arg0.getVariableValues().length; i++) {
+							ans = Double.compare(arg0.getVariableValues()[i],
+									arg1.getVariableValues()[i]);
+						}
+						if (ans != 0) {
+							return ans;
+						}
+					}
+				}
+				return ans;
+			}
+
+		};
+	}
+
+	private void fillOptimalSolutions() {
+		while (optimalSolutions.size() < this.numOptimalSolutions
+				&& !this.otherSolutions.isEmpty()) {
+			this.solutionStatus = SolutionStatus.OPTIMAL;
+			Solution bestFeas = otherSolutions.first();
+			otherSolutions.remove(bestFeas);
+			optimalSolutions.add(bestFeas);
+		}
+	}
+
+	/**
+	 * Compares the current set of solutions with the best bound, moves
+	 * solutions from feasible to optimal.
+	 * 
+	 * @return true if enough solutions have been proven optimal to terminate.
+	 */
+	private boolean checkSolutions() {
+		Optional<ObjectiveSense> objectiveSense = basicLpSolver.getObjSense();
+		if (!objectiveSense.isPresent()) {
+			if (!this.otherSolutions.isEmpty()) {
+				this.optimalSolutions.addAll(this.optimalSolutions);
+				this.otherSolutions.clear();
+				if (optimalSolutions.size() > this.numOptimalSolutions) {
+					while (optimalSolutions.size() > this.numOptimalSolutions
+							+ this.numExtraSolutionsRetained) {
+						this.optimalSolutions.remove(optimalSolutions.last());
+					}
+					return true;
+				}
+			}
+			return false;
+		} else {
+			boolean ans = false;
+			Optional<Double> bestBound = currentBestBound();
+			if (bestBound.isPresent()) {
+				while (!otherSolutions.isEmpty()
+						&& isProvablyOptimal(bestBound.get(),
+								otherSolutions.first())) {
+					optimalSolutions.add(otherSolutions.first());
+					otherSolutions.remove(otherSolutions.first());
+					if (optimalSolutions.size() >= this.numOptimalSolutions) {
+						ans = true;
+						break;
+					}
+				}
+			}
+			while (optimalSolutions.size() + otherSolutions.size() > this.numOptimalSolutions
+					+ this.numExtraSolutionsRetained) {
+				this.otherSolutions.remove(otherSolutions.last());
+			}
+			return ans;
+		}
+	}
+
+	private Comparator<Solution> solutionComparator;
 
 	@Override
 	public void solve() {
 
 		Optional<ObjectiveSense> objectiveSense = basicLpSolver.getObjSense();
+		solutionComparator = bestSolution(objectiveSense);
+		this.optimalSolutions = new TreeSet<Solution>(solutionComparator);
+		this.otherSolutions = new TreeSet<Solution>(solutionComparator);
 		this.nodeSelector = objectiveSense.isPresent() ? BestBoundNodeSelector
 				.getBestBoundNodeSelector(objectiveSense.get())
 				: DiveNodeSelector.INSTANCE;
 		this.nodeStack = new PriorityQueue<Node>(10, nodeSelector);
 		mipLog.tic();
 		checkAdvancedStarts();
-		if (this.incumbent.isPresent()) {
-			System.out.println("Advanced start found solution: "
-					+ incumbent.get().getObjValue());
+		if (!this.optimalSolutions.isEmpty()) {
+			System.out.println("Advanced start found "
+					+ optimalSolutions.size()
+					+ " optimal solutions (for a feasibility problem)");
+		}
+		if (!this.otherSolutions.isEmpty()) {
+			System.out.println("Advanced start found " + otherSolutions.size()
+					+ " feasible solutions, best: "
+					+ otherSolutions.first().getObjValue() + ", worst: "
+					+ otherSolutions.last().getObjValue());
 		}
 		Node first = new Node(nodesCreated++, new OpenIntToDoubleHashMap(),
 				new OpenIntToDoubleHashMap(), Optional.<Double> absent());
 		nodeStack.add(first);
 		System.out.println(this.nodeFormatter.header());
 		while (!nodeStack.isEmpty()) {
-			Node nextNode = nodeStack.poll();
-			if (this.incumbent.isPresent()
-					&& nextNode.getBestBound().isPresent()) {
-				if (isBeatenByIncumbent(nextNode.getBestBound().get())) {
-					break;
-				}
+			System.out.println("Optimal Solutions: "
+					+ this.optimalSolutions.size());
+			System.out.println("Feasible Solutions: "
+					+ this.otherSolutions.size());
+			boolean isOptimal = checkSolutions();
+			if (isOptimal) {
+				this.solutionStatus = SolutionStatus.OPTIMAL;
+				break;
 			}
+			Node nextNode = nodeStack.poll();
 			NodeLog log = new NodeLog();
 			boolean terminated = processNode(nextNode, log);
 			if (terminated) {
+
 				break;
 			} else {
 				this.printNode();
 			}
 		}
+		if (nodeStack.isEmpty()) {
+			fillOptimalSolutions();
+		}
+		System.out.println("Solution status: " + this.solutionStatus);
 		mipLog.toc();
+		System.out.println("optimal soutions: " + this.optimalSolutions.size());
+		System.out.println("feasible soutions: " + this.otherSolutions.size());
 		System.out.println(mipLogFormatter.format(mipLog));
-		if (this.incumbent.isPresent()) {
+		if (!this.optimalSolutions.isEmpty()) {
 			solutionStatus = SolutionStatus.OPTIMAL;
 		} else {
 			solutionStatus = SolutionStatus.INFEASIBLE;
@@ -258,19 +444,19 @@ public class MipSolverImpl implements MipSolver {
 	@Override
 	public double getVarValue(int varIndex) {
 		ensureAtLeastFeasible();
-		return this.incumbent.get().getVariableValues()[varIndex];
+		return this.optimalSolutions.first().getVariableValues()[varIndex];
 	}
 
 	@Override
 	public double getObjValue() {
 		ensureAtLeastFeasible();
-		return this.incumbent.get().getObjValue();
+		return this.optimalSolutions.first().getObjValue();
 
 	}
 
 	private void ensureAtLeastFeasible() {
-		if (!(this.solutionStatus == SolutionStatus.FEASIBLE)
-				&& !(this.solutionStatus == SolutionStatus.OPTIMAL)) {
+		if ((this.solutionStatus != SolutionStatus.FEASIBLE)
+				&& (this.solutionStatus != SolutionStatus.OPTIMAL)) {
 			throw new RuntimeException(
 					"Solution must be feasible or optimal to call this method.");
 		}
@@ -281,25 +467,29 @@ public class MipSolverImpl implements MipSolver {
 		this.basicLpSolver.destroy();
 	}
 
-	private boolean isBeatenByIncumbent(double objAttained) {
-		if (!incumbent.isPresent()) {
-			return false;
-		}
+	private boolean isProvablyOptimal(double bestBound, Solution solution) {
 		Optional<ObjectiveSense> objSense = basicLpSolver.getObjSense();
-		if (!objSense.isPresent()) {
-			return false;
-		}
 		if (objSense.get() == ObjectiveSense.MAX) {
-			return objAttained <= mipNodeCompareTol
-					+ incumbent.get().getObjValue();
+			return solution.getObjValue() + mipNodeCompareTol >= bestBound;
 		} else if (objSense.get() == ObjectiveSense.MIN) {
-			return objAttained >= incumbent.get().getObjValue()
-					- mipNodeCompareTol;
+			return solution.getObjValue() - mipNodeCompareTol <= bestBound;
 		} else {
 			throw new RuntimeException("Unexpected objective sense: "
 					+ objSense.get());
 		}
 	}
+
+	// TODO delete this when there are no references
+	/*
+	 * private boolean isBeatenByIncumbent(double objAttained) { if
+	 * (!incumbent.isPresent()) { return false; } Optional<ObjectiveSense>
+	 * objSense = basicLpSolver.getObjSense(); if (!objSense.isPresent()) {
+	 * return false; } if (objSense.get() == ObjectiveSense.MAX) { return
+	 * objAttained <= mipNodeCompareTol + incumbent.get().getObjValue(); } else
+	 * if (objSense.get() == ObjectiveSense.MIN) { return objAttained >=
+	 * incumbent.get().getObjValue() - mipNodeCompareTol; } else { throw new
+	 * RuntimeException("Unexpected objective sense: " + objSense.get()); } }
+	 */
 
 	private void setVarLBs(OpenIntToDoubleHashMap newLowerBounds) {
 		variableLowerBoundsToRestore = new OpenIntToDoubleHashMap();
@@ -395,16 +585,24 @@ public class MipSolverImpl implements MipSolver {
 
 	private void proposeIntegerSolution(Node sourceNode, Solution solution,
 			NodeLog nodeLog) {
+
 		boolean constrAdded = processCutCallbacks(sourceNode,
 				this.lazyConstraintCallbacks, solution,
 				this.mipLog.getLazyConstraintCallbackLog());
 		if (constrAdded) {
 
 		} else {
+
+			this.submitFeasibleSolution(solution);
 			nodeLog.setIncumbent(Optional.of(solution.getObjValue()));
 			nodeLog.setNewSolutionStatus(NewSolutionStatus.INTEGRAL);
-			this.solutionStatus = SolutionStatus.FEASIBLE;
-			this.incumbent = Optional.of(solution);
+			if (this.excludeOptimumCallback.isPresent()) {
+
+				processCutCallbacks(sourceNode,
+						Lists.newArrayList(excludeOptimumCallback.get()),
+						solution, this.mipLog.getExcludeOptimumCallbackLog());
+			}
+
 		}
 	}
 
@@ -544,6 +742,51 @@ public class MipSolverImpl implements MipSolver {
 	@Override
 	public void suggestAdvancedStart(OpenIntToDoubleHashMap solution) {
 		this.advancedStartSuggestions.add(solution);
+	}
+
+	public class DefaultExcludeOptimumCallback implements CutCallback {
+
+		@Override
+		public boolean skipCallback(CutCallbackMipView cutCallbackMipView) {
+			return false;
+		}
+
+		@Override
+		public boolean onCallback(CutCallbackMipView cutCallbackMipView) {
+			// System.out
+			// .println("yvar 0: " + cutCallbackMipView.getLPVarValue(0));
+			// System.out
+			// .println("yvar 1: " + cutCallbackMipView.getLPVarValue(1));
+			List<Double> varVals = Lists.newArrayList();
+			double sum = 0;
+			for (int i = 0; i < basicLpSolver.getNumVars(); i++) {
+				double coef = cutCallbackMipView.getLPVarValue(i);
+				varVals.add(coef);
+				if (integerVariables.get(i)) {
+					sum += Math.round(coef);
+				}
+			}
+			if (sum <= .01) {
+				return true;
+			}
+			int newConstraint = cutCallbackMipView.createConstr();
+
+			for (int i = 0; i < basicLpSolver.getNumVars(); i++) {
+				if (integerVariables.get(i)) {
+					double coef = Math.round(varVals.get(i));
+					cutCallbackMipView.setConstrCoef(newConstraint, i, coef);
+				}
+			}
+			cutCallbackMipView.setConstrLB(newConstraint, 0);
+			cutCallbackMipView.setConstrUB(newConstraint, sum - 1);
+			return true;
+		}
+
+		@Override
+		public String toString() {
+			return "mult";
+		}
+
 	}
 
 }

@@ -10,6 +10,7 @@ public class MipLog {
 
 	private CutCallbackLogger userCutCallbackLog;
 	private CutCallbackLogger lazyConstraintCallbackLog;
+	private CutCallbackLogger excludeOptimumCallbackLog;
 
 	private NodeLog lastNodeLog;
 
@@ -20,6 +21,7 @@ public class MipLog {
 	public MipLog() {
 		this.userCutCallbackLog = new CutCallbackLogger();
 		this.lazyConstraintCallbackLog = new CutCallbackLogger();
+		excludeOptimumCallbackLog = new CutCallbackLogger();
 		this.branchingTimer = new TimedEventLogger();
 		this.lpTimer = new TimedEventLogger();
 	}
@@ -63,6 +65,10 @@ public class MipLog {
 
 	public CutCallbackLogger getLazyConstraintCallbackLog() {
 		return lazyConstraintCallbackLog;
+	}
+
+	public CutCallbackLogger getExcludeOptimumCallbackLog() {
+		return this.excludeOptimumCallbackLog;
 	}
 
 	public void onNewNode() {

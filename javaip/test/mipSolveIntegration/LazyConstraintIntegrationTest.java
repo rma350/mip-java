@@ -51,6 +51,10 @@ public class LazyConstraintIntegrationTest {
 				return true;
 			}
 
+			public String toString() {
+				return "lazy";
+			}
+
 			@Override
 			public boolean skipCallback(CutCallbackMipView cutCallbackMipView) {
 				return false;
